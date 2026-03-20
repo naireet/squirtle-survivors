@@ -24,6 +24,8 @@ export class BootScene extends Phaser.Scene {
     this.load.image('enemy-rocket', 'assets/enemies/rocket.png');
     this.load.image('enemy-clacky', 'assets/enemies/clacky.png');
     this.load.image('enemy-tom-king', 'assets/enemies/tom-king.png');
+    this.load.image('enemy-ravegirl', 'assets/enemies/ravegirl.png');
+    this.load.image('enemy-pickle', 'assets/enemies/pickle.png');
 
     // Pickup sprites (48×48 with colored borders)
     this.load.image('pickup-1x', 'assets/pickups/powerup-1x.png');
@@ -31,7 +33,8 @@ export class BootScene extends Phaser.Scene {
     this.load.image('pickup-debuff', 'assets/pickups/debuff.png');
     this.load.image('pickup-aloe', 'assets/pickups/aloe.png');
     this.load.image('pickup-milk', 'assets/pickups/milk.png');
-    this.load.image('pickup-a1', 'assets/pickups/a1-heal.png');
+    this.load.image('pickup-a1', 'assets/pickups/a1-debuff.png');
+    this.load.image('pickup-meat', 'assets/pickups/meat.png');
 
     // Morty death quote avatar
     this.load.image('morty-avatar', 'assets/morty.png');
@@ -41,6 +44,9 @@ export class BootScene extends Phaser.Scene {
 
     // Background tile
     this.load.image('bg-arena', 'assets/bg/arena.png');
+
+    // Bathroom (static world object)
+    this.load.image('bathroom', 'assets/bathroom.png');
   }
 
   create() {

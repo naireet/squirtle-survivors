@@ -38,13 +38,25 @@ export class GameScene extends Phaser.Scene {
     this.isInvulnerable = false;
     this.lastAttackTime = 0;
 
+    // Kill counters
+    this.rocketKills = 0;
+    this.clackyKills = 0;
+    this.pickleKills = 0;
+    this.ravegirlKills = 0;
+    this.tomKingKilled = false;
+    this.tkSpawned = false;
+
     // Temporary effect timers
     this._aloeTimer = null;
     this._milkTimer = null;
     this._hulkTimer = null;
+    this._a1DrainTimer = null;
     this.isAloeBuffed = false;
     this.isMilkSlowed = false;
     this.isHulkDebuffed = false;
+    this.isA1Debuffed = false;
+    this.isPickleSlowed = false;
+    this._pickleTimer = null;
 
     // -- Player --
     this.player = this.physics.add.sprite(
@@ -76,6 +88,15 @@ export class GameScene extends Phaser.Scene {
     this.physics.add.overlap(this.player, this.enemies, this.onEnemyHitPlayer, null, this);
     this.physics.add.overlap(this.player, this.pickups, this.onPickup, null, this);
 
+    // -- Bathrooms (spread across world) --
+    this.bathrooms = this.physics.add.staticGroup();
+    this.spawnBathrooms(5);
+    this.physics.add.overlap(this.player, this.bathrooms, this.onBathroom, null, this);
+
+    // -- Bathroom arrow indicator (HUD layer, hidden by default) --
+    this.bathroomArrow = this.add.triangle(0, 0, 0, 12, 6, 0, 12, 12, 0x00ff00, 1)
+      .setDepth(100).setVisible(false).setScrollFactor(0);
+
     // -- Camera --
     this.cameras.main.startFollow(this.player, true, 0.08, 0.08);
     this.cameras.main.setBounds(0, 0, WORLD_SIZE, WORLD_SIZE);
@@ -102,6 +123,7 @@ export class GameScene extends Phaser.Scene {
     this.handleAutoAttack(time);
     this.updateEnemies();
     this.checkWaveProgress();
+    this.updateBathroomArrow();
   }
 
   // ── Pause ──
@@ -125,6 +147,7 @@ export class GameScene extends Phaser.Scene {
     let speed = CONFIG.PLAYER.SPEED;
     if (this.isAloeBuffed) speed *= CONFIG.PLAYER.ALOE_SPEED_FACTOR;
     if (this.isMilkSlowed) speed *= CONFIG.PLAYER.MILK_SLOW_FACTOR;
+    if (this.isPickleSlowed) speed *= CONFIG.PICKLE_SLOW_FACTOR;
     return speed;
   }
 
@@ -308,6 +331,17 @@ export class GameScene extends Phaser.Scene {
       if (!enemy.active) return;
       // Clacky pauses before dash — don't move during windup
       if (enemy.getData('dashing') || enemy.getData('winding')) return;
+      // Ravegirl stops when close to player (begging range ~120px)
+      if (enemy.getData('type') === 'ravegirl') {
+        const dist = Phaser.Math.Distance.Between(enemy.x, enemy.y, this.player.x, this.player.y);
+        if (dist < 120) {
+          enemy.body.setVelocity(0, 0);
+          enemy.setData('begging', true);
+          return;
+        } else {
+          enemy.setData('begging', false);
+        }
+      }
       this.physics.moveToObject(enemy, this.player, enemy.getData('speed'));
     });
   }
@@ -363,12 +397,119 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
+  /** Ravegirl — floats hearts/question marks when near player */
+  startRavegirlBehavior(enemy) {
+    const heartLoop = this.time.addEvent({
+      delay: 800,
+      callback: () => {
+        if (!enemy.active) { heartLoop.remove(); return; }
+        if (!enemy.getData('begging')) return;
+        const symbol = Math.random() < 0.5 ? '❤️' : '📱?';
+        const heart = this.add.text(enemy.x + Phaser.Math.Between(-15, 15), enemy.y - 30, symbol, {
+          fontSize: '14px',
+        }).setDepth(20);
+        this.tweens.add({
+          targets: heart,
+          y: heart.y - 30,
+          alpha: 0,
+          duration: 600,
+          onComplete: () => heart.destroy(),
+        });
+      },
+      loop: true,
+    });
+  }
+
+  /** TK dramatic entrance — pause, overlay, SNES text, resume on input */
+  triggerTKEntrance() {
+    if (this.tkSpawned) return;
+    this.tkSpawned = true;
+
+    // Pause gameplay
+    this.isPaused = true;
+    this.physics.pause();
+
+    // Dark overlay
+    const overlay = this.add.rectangle(
+      this.cameras.main.scrollX + CONFIG.WIDTH / 2,
+      this.cameras.main.scrollY + CONFIG.HEIGHT / 2,
+      CONFIG.WIDTH, CONFIG.HEIGHT, 0x000000, 0.7
+    ).setDepth(50).setScrollFactor(0);
+
+    // Pick random TK quote
+    const quotes = CONFIG.TK_QUOTES;
+    const quote = quotes[Math.floor(Math.random() * quotes.length)];
+
+    // Text box
+    const boxY = CONFIG.HEIGHT / 2;
+    const textBox = this.add.rectangle(CONFIG.WIDTH / 2, boxY, CONFIG.WIDTH - 60, 100, 0x111133, 0.9)
+      .setDepth(51).setScrollFactor(0).setStrokeStyle(2, 0xff4444);
+
+    const label = this.add.text(CONFIG.WIDTH / 2, boxY - 30, 'TOM KING:', {
+      fontFamily: '"Press Start 2P", monospace',
+      fontSize: '10px',
+      color: '#ff4444',
+      stroke: '#000',
+      strokeThickness: 2,
+    }).setOrigin(0.5).setDepth(52).setScrollFactor(0);
+
+    const quoteText = this.add.text(CONFIG.WIDTH / 2, boxY + 5, '', {
+      fontFamily: '"Press Start 2P", monospace',
+      fontSize: '9px',
+      color: '#ffffff',
+      stroke: '#000',
+      strokeThickness: 2,
+      wordWrap: { width: CONFIG.WIDTH - 100 },
+      align: 'center',
+    }).setOrigin(0.5).setDepth(52).setScrollFactor(0);
+
+    // Typewriter
+    let charIndex = 0;
+    const typeTimer = this.time.addEvent({
+      delay: 40,
+      callback: () => {
+        charIndex++;
+        quoteText.setText(quote.substring(0, charIndex));
+        if (charIndex >= quote.length) typeTimer.remove();
+      },
+      repeat: quote.length - 1,
+    });
+
+    const prompt = this.add.text(CONFIG.WIDTH / 2, boxY + 38, '[ PRESS ANY KEY ]', {
+      fontFamily: '"Press Start 2P", monospace',
+      fontSize: '8px',
+      color: '#aaaaaa',
+    }).setOrigin(0.5).setDepth(52).setScrollFactor(0).setAlpha(0);
+
+    // Show prompt after text finishes
+    this.time.delayedCall(quote.length * 40 + 500, () => {
+      prompt.setAlpha(1);
+      this.tweens.add({ targets: prompt, alpha: 0.3, duration: 400, yoyo: true, repeat: -1 });
+
+      const resume = () => {
+        overlay.destroy();
+        textBox.destroy();
+        label.destroy();
+        quoteText.destroy();
+        prompt.destroy();
+        // Resume and spawn TK
+        this.isPaused = false;
+        this.physics.resume();
+        this.spawnEnemy('tom_king');
+      };
+      this.input.once('pointerdown', resume);
+      this.input.keyboard.once('keydown', resume);
+    });
+  }
+
   spawnEnemy(type) {
     if (this.isGameOver) return;
 
     const cfg = {
       rocket: { key: 'enemy-rocket', ...CONFIG.ENEMIES.ROCKET, size: 64 },
+      pickle: { key: 'enemy-pickle', ...CONFIG.ENEMIES.PICKLE, size: 64 },
       clacky: { key: 'enemy-clacky', ...CONFIG.ENEMIES.CLACKY, size: 64 },
+      ravegirl: { key: 'enemy-ravegirl', ...CONFIG.ENEMIES.RAVEGIRL, size: 64 },
       tom_king: { key: 'enemy-tom-king', ...CONFIG.ENEMIES.TOM_KING, size: 128 },
     }[type];
     if (!cfg) return;
@@ -378,9 +519,11 @@ export class GameScene extends Phaser.Scene {
       this.audio.switchToBossBGM();
     }
 
-    // Spawn off-screen in a random direction
+    // Spawn position — TK spawns just outside viewport, others spawn further
     const angle = Phaser.Math.FloatBetween(0, Math.PI * 2);
-    const dist = Math.max(CONFIG.WIDTH, CONFIG.HEIGHT) * 0.7;
+    const dist = type === 'tom_king'
+      ? Math.max(CONFIG.WIDTH, CONFIG.HEIGHT) * 0.55  // just off-screen
+      : Math.max(CONFIG.WIDTH, CONFIG.HEIGHT) * 0.7;
     const x = this.player.x + Math.cos(angle) * dist;
     const y = this.player.y + Math.sin(angle) * dist;
 
@@ -395,7 +538,13 @@ export class GameScene extends Phaser.Scene {
     const offset = (cfg.size - bodySize) / 2;
     enemy.body.setSize(bodySize, bodySize);
     enemy.body.setOffset(offset, offset);
-    enemy.setData('hp', cfg.hp);
+
+    // TK gets scaling HP based on player power level
+    let hp = cfg.hp;
+    if (type === 'tom_king') {
+      hp += this.powerUpCount * 200;
+    }
+    enemy.setData('hp', hp);
     enemy.setData('speed', cfg.speed);
     enemy.setData('damage', cfg.damage);
     enemy.setData('type', type);
@@ -405,6 +554,10 @@ export class GameScene extends Phaser.Scene {
     // Clacky: start dash-attack loop after initial approach (2s)
     if (type === 'clacky') {
       this.time.delayedCall(2000, () => this.startClackyDash(enemy));
+    }
+    // Ravegirl: "begging for phone number" — stops near player, hearts float
+    if (type === 'ravegirl') {
+      this.startRavegirlBehavior(enemy);
     }
   }
 
@@ -431,6 +584,53 @@ export class GameScene extends Phaser.Scene {
   onEnemyDeath(enemy) {
     const type = enemy.getData('type');
 
+    // Kill counters
+    if (type === 'rocket') this.rocketKills++;
+    else if (type === 'clacky') this.clackyKills++;
+    else if (type === 'pickle') this.pickleKills++;
+    else if (type === 'ravegirl') {
+      this.ravegirlKills++;
+      // Check if TK should spawn
+      if (this.ravegirlKills >= CONFIG.RAVEGIRL_KILLS_FOR_TK && !this.tkSpawned) {
+        this.time.delayedCall(500, () => this.triggerTKEntrance());
+      }
+    }
+    else if (type === 'tom_king') this.tomKingKilled = true;
+
+    // Kill text popups
+    if (type === 'clacky') {
+      const ofd = this.add.text(enemy.x, enemy.y - 30, 'OFD', {
+        fontFamily: '"Press Start 2P", monospace',
+        fontSize: '14px',
+        color: '#ffdd00',
+        stroke: '#000000',
+        strokeThickness: 3,
+      }).setOrigin(0.5).setDepth(20);
+      this.tweens.add({
+        targets: ofd,
+        y: ofd.y - 40,
+        alpha: 0,
+        duration: 800,
+        onComplete: () => ofd.destroy(),
+      });
+    } else if (type === 'ravegirl') {
+      const popup = this.add.text(enemy.x, enemy.y - 30, 'Autojestergooned\nsister!', {
+        fontFamily: '"Press Start 2P", monospace',
+        fontSize: '10px',
+        color: '#ff66cc',
+        stroke: '#000000',
+        strokeThickness: 3,
+        align: 'center',
+      }).setOrigin(0.5).setDepth(20);
+      this.tweens.add({
+        targets: popup,
+        y: popup.y - 40,
+        alpha: 0,
+        duration: 1000,
+        onComplete: () => popup.destroy(),
+      });
+    }
+
     // Drop pickup — type determines what drops
     if (Math.random() < enemy.getData('dropChance')) {
       if (type === 'tom_king') {
@@ -441,25 +641,29 @@ export class GameScene extends Phaser.Scene {
         this.spawnPickup(enemy.x, enemy.y, Math.random() < 0.1 ? 'powerup-2x' : 'powerup-1x');
       }
     }
-    // Chance of special pickups (mutually exclusive per drop)
+    // Chance of special pickups
     const specialRoll = Math.random();
     if (type === 'rocket') {
-      // Debuffs only drop from rockets — 10% hulk, 5% milk
+      // Debuffs from rockets: 10% hulk, 5% milk, 5% A1 debuff
       if (specialRoll < 0.10) {
         this.spawnPickup(enemy.x, enemy.y, 'debuff');
       } else if (specialRoll < 0.15) {
         this.spawnPickup(enemy.x, enemy.y, 'milk');
+      } else if (specialRoll < 0.20) {
+        this.spawnPickup(enemy.x, enemy.y, 'a1');
+      }
+      // Rocket minor meat heal (4%)
+      if (Math.random() < 0.04) {
+        this.spawnPickup(enemy.x, enemy.y, 'meat-minor');
       }
     }
-    // Aloe can drop from any enemy (5% chance)
+    // Aloe from any enemy (5%)
     if (specialRoll >= 0.95) {
       this.spawnPickup(enemy.x, enemy.y, 'aloe');
     }
-    // A1 heal — 30% from clacky, 4% minor heal from rocket
+    // Meat heal from clacky (30%)
     if (type === 'clacky' && Math.random() < 0.30) {
-      this.spawnPickup(enemy.x, enemy.y, 'a1');
-    } else if (type === 'rocket' && Math.random() < 0.04) {
-      this.spawnPickup(enemy.x, enemy.y, 'a1-minor');
+      this.spawnPickup(enemy.x, enemy.y, 'meat');
     }
 
     // Boss killed = win
@@ -502,6 +706,17 @@ export class GameScene extends Phaser.Scene {
     enemy.body.velocity.x = Math.cos(angle) * 300;
     enemy.body.velocity.y = Math.sin(angle) * 300;
 
+    // Pickle on-hit: short speed slow
+    if (enemy.getData('type') === 'pickle' && !this.isPickleSlowed) {
+      this.isPickleSlowed = true;
+      this._updatePlayerTint();
+      if (this._pickleTimer) this._pickleTimer.remove();
+      this._pickleTimer = this.time.delayedCall(CONFIG.PICKLE_SLOW_DURATION, () => {
+        this.isPickleSlowed = false;
+        this._updatePlayerTint();
+      });
+    }
+
     if (this.playerHP <= 0) {
       this.endGame(false);
     }
@@ -520,6 +735,8 @@ export class GameScene extends Phaser.Scene {
       'milk': 'pickup-milk',
       'a1': 'pickup-a1',
       'a1-minor': 'pickup-a1',
+      'meat': 'pickup-meat',
+      'meat-minor': 'pickup-meat',
     };
     const pickup = this.pickups.create(x, y, keyMap[type]);
     pickup.setDisplaySize(48, 48);
@@ -566,10 +783,30 @@ export class GameScene extends Phaser.Scene {
         this._updatePlayerTint();
       });
       this.events.emit('effect-changed', { aloe: true });
-    } else if (type === 'a1' || type === 'a1-minor') {
-      // A1 — heal player (full from clacky, minor from rocket)
+    } else if (type === 'a1') {
+      // A1 — debuff: drains power level until bathroom found
+      this.audio.playDebuff();
+      this.isA1Debuffed = true;
+      player.setTint(0xcc6600);
+      if (this._a1DrainTimer) this._a1DrainTimer.remove();
+      this._a1DrainTimer = this.time.addEvent({
+        delay: CONFIG.PLAYER.A1_DRAIN_INTERVAL,
+        callback: () => {
+          if (!this.isA1Debuffed || this.isGameOver) return;
+          const prev = this.powerUpCount;
+          this.powerUpCount = Math.max(0, this.powerUpCount - CONFIG.PLAYER.A1_DRAIN_AMOUNT);
+          if (this.powerUpCount !== prev) {
+            this.updatePlayerEvolution(prev);
+            this.events.emit('powerup-changed', this.powerUpCount);
+          }
+        },
+        loop: true,
+      });
+      this.events.emit('effect-changed', { a1: true });
+    } else if (type === 'meat' || type === 'meat-minor') {
+      // Meat — heal player
       this.audio.playPickup();
-      const heal = type === 'a1' ? CONFIG.PLAYER.A1_HEAL_AMOUNT : CONFIG.PLAYER.A1_MINOR_HEAL;
+      const heal = type === 'meat' ? CONFIG.PLAYER.MEAT_HEAL_AMOUNT : CONFIG.PLAYER.MEAT_MINOR_HEAL;
       this.playerHP = Math.min(this.playerHP + heal, CONFIG.PLAYER.HP);
       player.setTint(0x00ff00);
       this.time.delayedCall(300, () => this._updatePlayerTint());
@@ -585,10 +822,12 @@ export class GameScene extends Phaser.Scene {
     this.events.emit('powerup-changed', this.powerUpCount);
   }
 
-  /** Resolve tint from active effects (priority: hulk > milk > aloe > clear) */
+  /** Resolve tint from active effects (priority: a1 > hulk > milk > pickle > aloe > clear) */
   _updatePlayerTint() {
-    if (this.isHulkDebuffed) this.player.setTint(0x9900ff);
+    if (this.isA1Debuffed) this.player.setTint(0xcc6600);
+    else if (this.isHulkDebuffed) this.player.setTint(0x9900ff);
     else if (this.isMilkSlowed) this.player.setTint(0xcccccc);
+    else if (this.isPickleSlowed) this.player.setTint(0x66cc00);
     else if (this.isAloeBuffed) this.player.setTint(0x00ffaa);
     else this.player.clearTint();
   }
@@ -603,8 +842,91 @@ export class GameScene extends Phaser.Scene {
     } else if (this.powerUpCount >= CONFIG.PLAYER.MEGA_THRESHOLD) {
       this.player.setTexture('player-mega');
       if (crossed(CONFIG.PLAYER.MEGA_THRESHOLD)) this.audio.playLevelUp();
+    } else {
+      this.player.setTexture('player-default');
     }
     this.player.setDisplaySize(64, 64);
+  }
+
+  // ── Bathrooms ──
+
+  spawnBathrooms(count) {
+    // Grid-based placement to ensure spread across the map
+    const gridSize = Math.ceil(Math.sqrt(count));
+    const cellW = WORLD_SIZE / gridSize;
+    const cellH = WORLD_SIZE / gridSize;
+    const margin = 150; // keep away from edges
+    let placed = 0;
+
+    for (let row = 0; row < gridSize && placed < count; row++) {
+      for (let col = 0; col < gridSize && placed < count; col++) {
+        const x = margin + col * cellW + Math.random() * (cellW - margin * 2);
+        const y = margin + row * cellH + Math.random() * (cellH - margin * 2);
+        const bathroom = this.bathrooms.create(
+          Phaser.Math.Clamp(x, margin, WORLD_SIZE - margin),
+          Phaser.Math.Clamp(y, margin, WORLD_SIZE - margin),
+          'bathroom'
+        );
+        bathroom.setDisplaySize(48, 48).setDepth(2).setAlpha(0.7);
+        bathroom.refreshBody();
+        placed++;
+      }
+    }
+  }
+
+  onBathroom(player, bathroom) {
+    if (!this.isA1Debuffed) return;
+
+    // Clear A1 debuff
+    this.isA1Debuffed = false;
+    if (this._a1DrainTimer) { this._a1DrainTimer.remove(); this._a1DrainTimer = null; }
+    this._updatePlayerTint();
+    this.events.emit('effect-changed', { a1: false });
+    this.bathroomArrow.setVisible(false);
+
+    // Grant 3s invulnerability
+    this.isInvulnerable = true;
+    player.setTint(0x00ff00);
+    this.tweens.add({
+      targets: player,
+      alpha: { from: 0.5, to: 1 },
+      duration: 150,
+      repeat: 9,
+      yoyo: true,
+      onComplete: () => {
+        player.setAlpha(1);
+        this.isInvulnerable = false;
+        this._updatePlayerTint();
+      }
+    });
+
+    this.audio.playPickup();
+  }
+
+  updateBathroomArrow() {
+    if (!this.isA1Debuffed) {
+      this.bathroomArrow.setVisible(false);
+      return;
+    }
+
+    // Find nearest bathroom
+    let nearest = null;
+    let minDist = Infinity;
+    this.bathrooms.getChildren().forEach(b => {
+      const d = Phaser.Math.Distance.Between(this.player.x, this.player.y, b.x, b.y);
+      if (d < minDist) { minDist = d; nearest = b; }
+    });
+    if (!nearest) return;
+
+    // Position arrow at edge of screen pointing toward bathroom
+    const cam = this.cameras.main;
+    const angle = Phaser.Math.Angle.Between(this.player.x, this.player.y, nearest.x, nearest.y);
+    const edgeX = CONFIG.WIDTH / 2 + Math.cos(angle) * (CONFIG.WIDTH / 2 - 20);
+    const edgeY = CONFIG.HEIGHT / 2 + Math.sin(angle) * (CONFIG.HEIGHT / 2 - 20);
+
+    this.bathroomArrow.setPosition(edgeX, edgeY);
+    this.bathroomArrow.setRotation(angle + Math.PI / 2);
+    this.bathroomArrow.setVisible(true);
   }
 
   // ── Wave System ──
@@ -658,6 +980,11 @@ export class GameScene extends Phaser.Scene {
       time: Math.floor(this.gameTime / 1000),
       powerUps: this.powerUpCount,
       wave: this.currentWave + 1,
+      rocketKills: this.rocketKills,
+      clackyKills: this.clackyKills,
+      pickleKills: this.pickleKills,
+      ravegirlKills: this.ravegirlKills,
+      tomKingKilled: this.tomKingKilled,
     };
 
     if (victory) {

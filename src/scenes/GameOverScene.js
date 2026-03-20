@@ -10,7 +10,7 @@ export class GameOverScene extends Phaser.Scene {
   }
 
   create(data) {
-    const { victory, time, powerUps, wave } = data;
+    const { victory, time, powerUps, wave, rocketKills = 0, clackyKills = 0, pickleKills = 0, ravegirlKills = 0, tomKingKilled = false } = data;
     const { width, height } = this.scale;
 
     // Splash image
@@ -19,7 +19,7 @@ export class GameOverScene extends Phaser.Scene {
     bg.setDisplaySize(width, height);
 
     // Semi-transparent overlay for readability
-    this.add.rectangle(width / 2, height / 2, width, height, 0x000000, 0.4);
+    this.add.rectangle(width / 2, height / 2, width, height, 0x000000, 0.5);
 
     const style = {
       fontFamily: '"Press Start 2P", monospace',
@@ -31,34 +31,47 @@ export class GameOverScene extends Phaser.Scene {
     };
 
     // Title
-    this.add.text(width / 2, height * 0.3, victory ? 'VICTORY!' : 'GAME OVER', style)
+    this.add.text(width / 2, height * 0.15, victory ? 'VICTORY!' : 'GAME OVER', style)
       .setOrigin(0.5);
 
     // Stats
     const m = Math.floor(time / 60);
     const s = time % 60;
-    const statsStyle = { ...style, fontSize: '12px', color: '#ffffff' };
-    this.add.text(width / 2, height * 0.5, [
+    const statsStyle = { ...style, fontSize: '10px', color: '#ffffff', lineSpacing: 5 };
+    this.add.text(width / 2, height * 0.32, [
       `Wave: ${wave} / ${CONFIG.WAVES.length}`,
       `Time: ${m}:${s.toString().padStart(2, '0')}`,
       `Power Level: ${powerUps}`,
     ].join('\n'), statsStyle).setOrigin(0.5);
 
-    // Restart prompt
-    const restart = this.add.text(width / 2, height * 0.75, '[ PRESS ANY KEY TO RESTART ]', {
-      ...statsStyle, fontSize: '10px', color: '#aaaaaa',
-    }).setOrigin(0.5);
+    // Kill summary — victory only
+    if (victory) {
+      const killSummary = `You vanquished ${rocketKills} Clavicular fans,\n${clackyKills} Clackys, ${ravegirlKills} Ravegirls,\n${pickleKills} Titan Sloths!\nStrat prevents another 9/11,\nPahrump can sleep in peace again!\nOda is proud of you!`;
+      this.add.text(width / 2, height * 0.56, killSummary, {
+        ...statsStyle, fontSize: '8px', color: '#cccccc', lineSpacing: 4,
+      }).setOrigin(0.5);
+    }
 
-    this.tweens.add({
-      targets: restart,
-      alpha: 0.3,
-      duration: 600,
-      yoyo: true,
-      repeat: -1,
+    // Play Again button
+    const btnStyle = {
+      fontFamily: '"Press Start 2P", monospace',
+      fontSize: '14px',
+      color: '#000000',
+      backgroundColor: '#ffdd00',
+      padding: { x: 20, y: 12 },
+    };
+    const playAgain = this.add.text(width / 2, height * 0.82, 'PLAY AGAIN', btnStyle)
+      .setOrigin(0.5)
+      .setInteractive({ useHandCursor: true });
+
+    playAgain.on('pointerover', () => playAgain.setColor('#333'));
+    playAgain.on('pointerout', () => playAgain.setColor('#000'));
+    playAgain.on('pointerdown', () => this.restartGame());
+
+    // Keyboard restart — delayed 500ms to avoid consuming the skip input from previous scene
+    this.time.delayedCall(500, () => {
+      this.input.keyboard.once('keydown', () => this.restartGame());
     });
-
-    this.input.once('pointerdown', () => this.restartGame());
-    this.input.keyboard.once('keydown', () => this.restartGame());
   }
 
   restartGame() {

@@ -2,6 +2,15 @@ import Phaser from 'phaser';
 
 const QUOTES = [
   '"A glass of whole milk\nwould kill strat"',
+  '"We are in a Mad Max type\nof situation because of\nyour failure"',
+  '"Is this like when Strat\nclaims to be the\n#1 beef boy?"',
+  '"Keep in mind Strat has\nbeen silent about the guy\nwho capped Shinzo"',
+  '"get ready to learn\nChinese, buddy"',
+  '"You will never complete\nyour Sorcerer Supreme\ncollection now."',
+  '"Strat has soft bones."',
+  '"All this time we\'ve been\nsaying Strat has glass\nbones and paper skin,\nhe always proves me right."',
+  '"like McClacky\'s balls.\nRip" - Strat',
+  '"How\'s that fucking\nmeat, strat"',
 ];
 
 /**
