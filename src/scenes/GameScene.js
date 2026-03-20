@@ -21,16 +21,12 @@ export class GameScene extends Phaser.Scene {
     // -- World bounds --
     this.physics.world.setBounds(0, 0, WORLD_SIZE, WORLD_SIZE);
 
-    // -- Background (tiled grid placeholder until real bg is sourced) --
-    const gfx = this.add.graphics();
-    gfx.lineStyle(1, 0x333355, 0.3);
-    for (let x = 0; x <= WORLD_SIZE; x += 64) {
-      gfx.moveTo(x, 0); gfx.lineTo(x, WORLD_SIZE);
+    // -- Tiled retrowave background --
+    for (let x = 0; x < WORLD_SIZE; x += 256) {
+      for (let y = 0; y < WORLD_SIZE; y += 256) {
+        this.add.image(x + 128, y + 128, 'bg-arena');
+      }
     }
-    for (let y = 0; y <= WORLD_SIZE; y += 64) {
-      gfx.moveTo(0, y); gfx.lineTo(WORLD_SIZE, y);
-    }
-    gfx.strokePath();
 
     // -- Game state --
     this.powerUpCount = 0;
@@ -39,7 +35,16 @@ export class GameScene extends Phaser.Scene {
     this.waveTimer = 0;
     this.gameTime = 0;
     this.isGameOver = false;
+    this.isInvulnerable = false;
     this.lastAttackTime = 0;
+
+    // Temporary effect timers
+    this._aloeTimer = null;
+    this._milkTimer = null;
+    this._hulkTimer = null;
+    this.isAloeBuffed = false;
+    this.isMilkSlowed = false;
+    this.isHulkDebuffed = false;
 
     // -- Player --
     this.player = this.physics.add.sprite(
@@ -78,13 +83,18 @@ export class GameScene extends Phaser.Scene {
     // -- HUD (parallel scene) --
     this.scene.launch('HUDScene', { gameScene: this });
 
+    // -- Pause (ESC or P) --
+    this.isPaused = false;
+    this.input.keyboard.on('keydown-ESC', () => this.togglePause());
+    this.input.keyboard.on('keydown-P', () => this.togglePause());
+
     // -- Wave system --
     this.spawnTimers = [];
     this.startWave(0);
   }
 
   update(time, delta) {
-    if (this.isGameOver) return;
+    if (this.isGameOver || this.isPaused) return;
 
     this.gameTime += delta;
     this.waveTimer += delta;
@@ -94,7 +104,48 @@ export class GameScene extends Phaser.Scene {
     this.checkWaveProgress();
   }
 
+  // ── Pause ──
+
+  togglePause() {
+    this.isPaused = !this.isPaused;
+    if (this.isPaused) {
+      this.physics.pause();
+      this.audio.setMuted(true);
+      this.events.emit('paused', true);
+    } else {
+      this.physics.resume();
+      this.audio.setMuted(false);
+      this.events.emit('paused', false);
+    }
+  }
+
   // ── Movement ──
+
+  getEffectiveSpeed() {
+    let speed = CONFIG.PLAYER.SPEED;
+    if (this.isAloeBuffed) speed *= CONFIG.PLAYER.ALOE_SPEED_FACTOR;
+    if (this.isMilkSlowed) speed *= CONFIG.PLAYER.MILK_SLOW_FACTOR;
+    return speed;
+  }
+
+  getEffectiveCooldown() {
+    let cd = CONFIG.PLAYER.ATTACK_COOLDOWN;
+    // Evolution bonuses
+    if (this.powerUpCount >= CONFIG.PLAYER.ULTRA_THRESHOLD) {
+      cd *= CONFIG.PLAYER.ULTRA_COOLDOWN_MULT;
+    } else if (this.powerUpCount >= CONFIG.PLAYER.MEGA_THRESHOLD) {
+      cd *= CONFIG.PLAYER.MEGA_COOLDOWN_MULT;
+    }
+    // Hulk debuff stacks on top
+    if (this.isHulkDebuffed) cd *= CONFIG.PLAYER.HULK_COOLDOWN_MULT;
+    return cd;
+  }
+
+  getShotCount() {
+    if (this.powerUpCount >= CONFIG.PLAYER.ULTRA_THRESHOLD) return CONFIG.PLAYER.ULTRA_SHOT_COUNT;
+    if (this.powerUpCount >= CONFIG.PLAYER.MEGA_THRESHOLD) return CONFIG.PLAYER.MEGA_SHOT_COUNT;
+    return 1;
+  }
 
   handleMovement() {
     let vx = 0, vy = 0;
@@ -110,9 +161,7 @@ export class GameScene extends Phaser.Scene {
       vy = this.joystickVector.y;
     }
 
-    const speed = this.player.getData('debuffed')
-      ? CONFIG.PLAYER.SPEED * CONFIG.PLAYER.DEBUFF_SLOW_FACTOR
-      : CONFIG.PLAYER.SPEED;
+    const speed = this.getEffectiveSpeed();
 
     if (vx !== 0 || vy !== 0) {
       const vec = new Phaser.Math.Vector2(vx, vy).normalize().scale(speed);
@@ -126,64 +175,121 @@ export class GameScene extends Phaser.Scene {
   }
 
   setupMobileJoystick() {
-    // Simple touch-drag joystick
-    let origin = null;
+    // Virtual thumbstick — spawns at touch point, visual feedback
+    const STICK_RADIUS = 50;   // outer ring radius
+    const THUMB_RADIUS = 20;   // inner thumb radius
+    const DEAD_ZONE = 8;       // min drag before registering input
+    const MAX_DRAG = 50;       // max drag distance for full speed
+
+    // Create joystick graphics (hidden initially, fixed to camera)
+    this.stickBase = this.add.circle(0, 0, STICK_RADIUS, 0xffffff, 0.15)
+      .setDepth(100).setVisible(false).setScrollFactor(0);
+    this.stickThumb = this.add.circle(0, 0, THUMB_RADIUS, 0xffffff, 0.4)
+      .setDepth(101).setVisible(false).setScrollFactor(0);
+
+    let activePointer = null;
+    let originX = 0, originY = 0;
+
     this.input.on('pointerdown', (pointer) => {
-      if (pointer.x < CONFIG.WIDTH / 2) { // left half = joystick
-        origin = { x: pointer.x, y: pointer.y };
-      }
+      // Don't hijack taps on UI buttons (bottom 60px right side)
+      if (pointer.y > CONFIG.HEIGHT - 60 && pointer.x > CONFIG.WIDTH - 100) return;
+      if (activePointer) return; // already tracking a finger
+
+      activePointer = pointer;
+      originX = pointer.x;
+      originY = pointer.y;
+
+      this.stickBase.setPosition(originX, originY).setVisible(true);
+      this.stickThumb.setPosition(originX, originY).setVisible(true);
     });
+
     this.input.on('pointermove', (pointer) => {
-      if (origin && pointer.isDown) {
-        const dx = pointer.x - origin.x;
-        const dy = pointer.y - origin.y;
-        const len = Math.sqrt(dx * dx + dy * dy);
-        if (len > 10) {
-          this.joystickVector.set(dx / len, dy / len);
-        }
+      if (!activePointer || pointer.id !== activePointer.id) return;
+
+      const dx = pointer.x - originX;
+      const dy = pointer.y - originY;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+
+      if (dist > DEAD_ZONE) {
+        const clamped = Math.min(dist, MAX_DRAG);
+        const nx = dx / dist;
+        const ny = dy / dist;
+        this.joystickVector.set(nx, ny);
+
+        // Move thumb visual (clamped to ring)
+        this.stickThumb.setPosition(
+          originX + nx * clamped,
+          originY + ny * clamped
+        );
+      } else {
+        this.joystickVector.set(0, 0);
+        this.stickThumb.setPosition(originX, originY);
       }
     });
-    this.input.on('pointerup', () => {
-      origin = null;
+
+    const releaseStick = (pointer) => {
+      if (!activePointer || pointer.id !== activePointer.id) return;
+      activePointer = null;
       this.joystickVector.set(0, 0);
-    });
+      this.stickBase.setVisible(false);
+      this.stickThumb.setVisible(false);
+    };
+
+    this.input.on('pointerup', releaseStick);
+    this.input.on('pointerupoutside', releaseStick);
   }
 
   // ── Auto-Attack ──
 
   handleAutoAttack(time) {
-    if (time - this.lastAttackTime < CONFIG.PLAYER.ATTACK_COOLDOWN) return;
+    if (time - this.lastAttackTime < this.getEffectiveCooldown()) return;
 
     const nearest = this.physics.closest(this.player, this.enemies.getChildren().filter(e => e.active));
     if (!nearest) return;
 
     this.lastAttackTime = time;
-    this.fireProjectile(nearest);
+    const shotCount = this.getShotCount();
+    const baseAngle = Phaser.Math.Angle.Between(this.player.x, this.player.y, nearest.x, nearest.y);
+
+    if (shotCount === 1) {
+      this.fireProjectile(baseAngle);
+    } else {
+      // Spread shots evenly across a 30° arc
+      const spread = Math.PI / 6; // 30 degrees
+      const step = spread / (shotCount - 1);
+      const startAngle = baseAngle - spread / 2;
+      for (let i = 0; i < shotCount; i++) {
+        this.fireProjectile(startAngle + step * i);
+      }
+    }
   }
 
-  fireProjectile(target) {
+  fireProjectile(angle) {
     const proj = this.projectiles.get(this.player.x, this.player.y, '__DEFAULT');
     if (!proj) return;
     this.audio.playShoot();
 
-    // Simple circle projectile
     proj.setActive(true).setVisible(true);
     if (!proj.body) this.physics.add.existing(proj);
     proj.body.enable = true;
 
-    // Draw a small circle texture if not yet created
-    if (!this.textures.exists('projectile')) {
+    // Generate projectile textures per evolution tier
+    const isUltra = this.powerUpCount >= CONFIG.PLAYER.ULTRA_THRESHOLD;
+    const texKey = isUltra ? 'projectile-ultra' : 'projectile';
+    const size = isUltra ? CONFIG.PLAYER.ULTRA_PROJ_SIZE : 12;
+
+    if (!this.textures.exists(texKey)) {
       const gfx = this.make.graphics({ add: false });
-      gfx.fillStyle(0x00ccff);
-      gfx.fillCircle(6, 6, 6);
-      gfx.generateTexture('projectile', 12, 12);
+      const color = isUltra ? 0xff44ff : 0x00ccff;
+      gfx.fillStyle(color);
+      gfx.fillCircle(size / 2, size / 2, size / 2);
+      gfx.generateTexture(texKey, size, size);
       gfx.destroy();
     }
-    proj.setTexture('projectile');
-    proj.setDisplaySize(12, 12);
+    proj.setTexture(texKey);
+    proj.setDisplaySize(size, size);
     proj.setDepth(5);
 
-    const angle = Phaser.Math.Angle.Between(this.player.x, this.player.y, target.x, target.y);
     this.physics.velocityFromRotation(angle, CONFIG.PLAYER.PROJECTILE_SPEED, proj.body.velocity);
 
     // Auto-destroy after 2 seconds
@@ -214,7 +320,10 @@ export class GameScene extends Phaser.Scene {
     }[type];
     if (!cfg) return;
 
-    if (type === 'tom_king') this.audio.playBossSpawn();
+    if (type === 'tom_king') {
+      this.audio.playBossSpawn();
+      this.audio.switchToBossBGM();
+    }
 
     // Spawn off-screen in a random direction
     const angle = Phaser.Math.FloatBetween(0, Math.PI * 2);
@@ -264,16 +373,24 @@ export class GameScene extends Phaser.Scene {
       if (type === 'tom_king') {
         this.spawnPickup(enemy.x, enemy.y, 'powerup-2x');
       } else if (type === 'clacky') {
-        // Clacky always drops; 30% chance of 2x, 70% chance of 1x
         this.spawnPickup(enemy.x, enemy.y, Math.random() < 0.3 ? 'powerup-2x' : 'powerup-1x');
       } else {
-        // Rockets: 90% 1x, 10% 2x
         this.spawnPickup(enemy.x, enemy.y, Math.random() < 0.1 ? 'powerup-2x' : 'powerup-1x');
       }
     }
-    // Small chance of debuff drop
-    if (Math.random() < 0.05) {
-      this.spawnPickup(enemy.x, enemy.y, 'debuff');
+    // Chance of special pickups (mutually exclusive per drop)
+    const specialRoll = Math.random();
+    if (type === 'rocket') {
+      // Debuffs only drop from rockets — 15% hulk, 10% milk
+      if (specialRoll < 0.15) {
+        this.spawnPickup(enemy.x, enemy.y, 'debuff');
+      } else if (specialRoll < 0.25) {
+        this.spawnPickup(enemy.x, enemy.y, 'milk');
+      }
+    }
+    // Aloe can drop from any enemy (3% chance)
+    if (specialRoll >= 0.97) {
+      this.spawnPickup(enemy.x, enemy.y, 'aloe');
     }
 
     // Boss killed = win
@@ -285,15 +402,33 @@ export class GameScene extends Phaser.Scene {
   }
 
   onEnemyHitPlayer(player, enemy) {
+    // Invincibility frames — skip damage if still invulnerable
+    if (this.isInvulnerable) return;
+
     const dmg = enemy.getData('damage');
     this.playerHP -= dmg;
     this.audio.playPlayerHit();
 
-    // Knockback + invincibility frames
+    // Grant i-frames (350ms of invulnerability)
+    this.isInvulnerable = true;
     player.setTint(0xff0000);
-    this.time.delayedCall(200, () => { if (player.active) player.clearTint(); });
+    player.setAlpha(0.6);
 
-    // Push enemy back slightly
+    // Flash effect during i-frames
+    this.tweens.add({
+      targets: player,
+      alpha: { from: 0.3, to: 0.8 },
+      duration: 80,
+      repeat: 3,
+      yoyo: true,
+      onComplete: () => {
+        player.setAlpha(1);
+        player.clearTint();
+        this.isInvulnerable = false;
+      }
+    });
+
+    // Push enemy back
     const angle = Phaser.Math.Angle.Between(player.x, player.y, enemy.x, enemy.y);
     enemy.body.velocity.x = Math.cos(angle) * 300;
     enemy.body.velocity.y = Math.sin(angle) * 300;
@@ -312,6 +447,8 @@ export class GameScene extends Phaser.Scene {
       'powerup-1x': 'pickup-1x',
       'powerup-2x': 'pickup-2x',
       'debuff': 'pickup-debuff',
+      'aloe': 'pickup-aloe',
+      'milk': 'pickup-milk',
     };
     const pickup = this.pickups.create(x, y, keyMap[type]);
     pickup.setDisplaySize(48, 48);
@@ -326,13 +463,38 @@ export class GameScene extends Phaser.Scene {
     pickup.destroy();
 
     if (type === 'debuff') {
+      // Hulk — lowers fire rate (increases attack cooldown)
       this.audio.playDebuff();
-      player.setData('debuffed', true);
+      this.isHulkDebuffed = true;
       player.setTint(0x9900ff);
-      this.time.delayedCall(CONFIG.PLAYER.DEBUFF_DURATION, () => {
-        player.setData('debuffed', false);
-        player.clearTint();
+      if (this._hulkTimer) this._hulkTimer.remove();
+      this._hulkTimer = this.time.delayedCall(CONFIG.PLAYER.HULK_DURATION, () => {
+        this.isHulkDebuffed = false;
+        this._updatePlayerTint();
       });
+      this.events.emit('effect-changed', { hulk: true });
+    } else if (type === 'milk') {
+      // Milk — slows movement speed
+      this.audio.playDebuff();
+      this.isMilkSlowed = true;
+      player.setTint(0xcccccc);
+      if (this._milkTimer) this._milkTimer.remove();
+      this._milkTimer = this.time.delayedCall(CONFIG.PLAYER.MILK_DURATION, () => {
+        this.isMilkSlowed = false;
+        this._updatePlayerTint();
+      });
+      this.events.emit('effect-changed', { milk: true });
+    } else if (type === 'aloe') {
+      // Aloe — temporary speed boost, resets timer on re-pickup
+      this.audio.playSpeedBuff();
+      this.isAloeBuffed = true;
+      player.setTint(0x00ffaa);
+      if (this._aloeTimer) this._aloeTimer.remove();
+      this._aloeTimer = this.time.delayedCall(CONFIG.PLAYER.ALOE_DURATION, () => {
+        this.isAloeBuffed = false;
+        this._updatePlayerTint();
+      });
+      this.events.emit('effect-changed', { aloe: true });
     } else {
       this.audio.playPickup();
       const amount = type === 'powerup-2x' ? 2 : 1;
@@ -342,6 +504,14 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.events.emit('powerup-changed', this.powerUpCount);
+  }
+
+  /** Resolve tint from active effects (priority: hulk > milk > aloe > clear) */
+  _updatePlayerTint() {
+    if (this.isHulkDebuffed) this.player.setTint(0x9900ff);
+    else if (this.isMilkSlowed) this.player.setTint(0xcccccc);
+    else if (this.isAloeBuffed) this.player.setTint(0x00ffaa);
+    else this.player.clearTint();
   }
 
   updatePlayerEvolution(prevCount) {

@@ -118,6 +118,25 @@ export class RetroAudio {
     osc.stop(this.ctx.currentTime + 0.3);
   }
 
+  /** Speed buff chime (bright ascending) */
+  playSpeedBuff() {
+    if (this.muted || !this.ctx) return;
+    const notes = [659, 784, 988]; // E5, G5, B5
+    notes.forEach((freq, i) => {
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+      osc.type = 'triangle';
+      const t = this.ctx.currentTime + i * 0.05;
+      osc.frequency.setValueAtTime(freq, t);
+      gain.gain.setValueAtTime(0.12, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.1);
+      osc.start(t);
+      osc.stop(t + 0.1);
+    });
+  }
+
   /** Player damage */
   playPlayerHit() {
     if (this.muted || !this.ctx) return;
@@ -162,15 +181,20 @@ export class RetroAudio {
   /** Simple synthwave BGM loop using oscillators */
   startBGM() {
     if (!this.ctx) return;
+    this._bgmMode = 'normal';
+    this._startNormalBGM();
+  }
 
+  _startNormalBGM() {
+    this._clearBGMLoop();
     const bpm = 120;
-    const step = 60 / bpm / 2; // 8th notes
-    const now = this.ctx.currentTime;
-    const loopLen = step * 16; // 2 bars
+    const step = 60 / bpm / 2;
+    const loopLen = step * 16;
 
-    // Bass line (saw wave)
     const bassNotes = [110, 110, 130.81, 130.81, 146.83, 146.83, 130.81, 130.81,
                        110, 110, 130.81, 130.81, 146.83, 164.81, 146.83, 130.81];
+    const padNotes = [330, 392, 440, 523, 440, 392, 330, 392,
+                      349, 440, 523, 659, 523, 440, 349, 440];
 
     const masterGain = this.ctx.createGain();
     masterGain.gain.value = this.muted ? 0 : 0.15;
@@ -178,41 +202,33 @@ export class RetroAudio {
     this.bgm = masterGain;
 
     const createLoop = () => {
+      if (this._bgmMode !== 'normal') return;
       const startTime = this.ctx.currentTime;
 
-      // Bass
       bassNotes.forEach((freq, i) => {
         const osc = this.ctx.createOscillator();
         const g = this.ctx.createGain();
-        osc.connect(g);
-        g.connect(masterGain);
+        osc.connect(g); g.connect(masterGain);
         osc.type = 'sawtooth';
         const t = startTime + i * step;
         osc.frequency.setValueAtTime(freq, t);
         g.gain.setValueAtTime(0.3, t);
         g.gain.exponentialRampToValueAtTime(0.001, t + step * 0.9);
-        osc.start(t);
-        osc.stop(t + step);
+        osc.start(t); osc.stop(t + step);
       });
 
-      // Arpeggiated pad
-      const padNotes = [330, 392, 440, 523, 440, 392, 330, 392,
-                        349, 440, 523, 659, 523, 440, 349, 440];
       padNotes.forEach((freq, i) => {
         const osc = this.ctx.createOscillator();
         const g = this.ctx.createGain();
-        osc.connect(g);
-        g.connect(masterGain);
+        osc.connect(g); g.connect(masterGain);
         osc.type = 'triangle';
         const t = startTime + i * step;
         osc.frequency.setValueAtTime(freq, t);
         g.gain.setValueAtTime(0.08, t);
         g.gain.exponentialRampToValueAtTime(0.001, t + step * 0.8);
-        osc.start(t);
-        osc.stop(t + step);
+        osc.start(t); osc.stop(t + step);
       });
 
-      // Hi-hat (noise)
       for (let i = 0; i < 16; i++) {
         const bufSize = this.ctx.sampleRate * 0.03;
         const buf = this.ctx.createBuffer(1, bufSize, this.ctx.sampleRate);
@@ -222,30 +238,112 @@ export class RetroAudio {
         src.buffer = buf;
         const g = this.ctx.createGain();
         const hp = this.ctx.createBiquadFilter();
-        hp.type = 'highpass';
-        hp.frequency.value = 8000;
-        src.connect(hp);
-        hp.connect(g);
-        g.connect(masterGain);
+        hp.type = 'highpass'; hp.frequency.value = 8000;
+        src.connect(hp); hp.connect(g); g.connect(masterGain);
         const t = startTime + i * step;
         g.gain.setValueAtTime(0.08, t);
         g.gain.exponentialRampToValueAtTime(0.001, t + 0.03);
-        src.start(t);
-        src.stop(t + 0.03);
+        src.start(t); src.stop(t + 0.03);
       }
 
-      // Schedule next loop
       this._bgmTimer = setTimeout(() => createLoop(), loopLen * 1000 - 50);
     };
-
     createLoop();
   }
 
-  stopBGM() {
+  /** Ominous boss BGM — slow, heavy, minor key */
+  _startBossBGM() {
+    this._clearBGMLoop();
+    const bpm = 80;
+    const step = 60 / bpm / 2;
+    const loopLen = step * 16;
+
+    // Minor key bass — E2, D2, C2, B1 pattern
+    const bassNotes = [82.41, 82.41, 73.42, 73.42, 65.41, 65.41, 61.74, 61.74,
+                       82.41, 82.41, 73.42, 73.42, 65.41, 61.74, 65.41, 73.42];
+    // Dissonant pad — minor seconds and tritones
+    const padNotes = [165, 156, 165, 156, 131, 123, 131, 123,
+                      165, 156, 185, 156, 131, 123, 131, 147];
+
+    const masterGain = this.ctx.createGain();
+    masterGain.gain.value = this.muted ? 0 : 0.18;
+    masterGain.connect(this.ctx.destination);
+    this.bgm = masterGain;
+
+    const createLoop = () => {
+      if (this._bgmMode !== 'boss') return;
+      const startTime = this.ctx.currentTime;
+
+      // Heavy distorted bass
+      bassNotes.forEach((freq, i) => {
+        const osc = this.ctx.createOscillator();
+        const g = this.ctx.createGain();
+        osc.connect(g); g.connect(masterGain);
+        osc.type = 'sawtooth';
+        const t = startTime + i * step;
+        osc.frequency.setValueAtTime(freq, t);
+        g.gain.setValueAtTime(0.4, t);
+        g.gain.exponentialRampToValueAtTime(0.01, t + step * 0.95);
+        osc.start(t); osc.stop(t + step);
+      });
+
+      // Eerie pad
+      padNotes.forEach((freq, i) => {
+        const osc = this.ctx.createOscillator();
+        const g = this.ctx.createGain();
+        osc.connect(g); g.connect(masterGain);
+        osc.type = 'sine';
+        const t = startTime + i * step;
+        osc.frequency.setValueAtTime(freq, t);
+        // Slow vibrato
+        osc.frequency.linearRampToValueAtTime(freq * 1.02, t + step * 0.5);
+        osc.frequency.linearRampToValueAtTime(freq, t + step);
+        g.gain.setValueAtTime(0.12, t);
+        g.gain.exponentialRampToValueAtTime(0.001, t + step * 0.9);
+        osc.start(t); osc.stop(t + step);
+      });
+
+      // Slow heavy kick-like thuds (every 4th step)
+      for (let i = 0; i < 16; i += 4) {
+        const osc = this.ctx.createOscillator();
+        const g = this.ctx.createGain();
+        osc.connect(g); g.connect(masterGain);
+        osc.type = 'sine';
+        const t = startTime + i * step;
+        osc.frequency.setValueAtTime(80, t);
+        osc.frequency.exponentialRampToValueAtTime(30, t + 0.15);
+        g.gain.setValueAtTime(0.3, t);
+        g.gain.exponentialRampToValueAtTime(0.001, t + 0.15);
+        osc.start(t); osc.stop(t + 0.15);
+      }
+
+      this._bgmTimer = setTimeout(() => createLoop(), loopLen * 1000 - 50);
+    };
+    createLoop();
+  }
+
+  /** Crossfade from normal BGM to boss BGM */
+  switchToBossBGM() {
+    if (!this.ctx || this._bgmMode === 'boss') return;
+    // Fade out current
+    if (this.bgm) {
+      this.bgm.gain.linearRampToValueAtTime(0, this.ctx.currentTime + 1.5);
+    }
+    this._bgmMode = 'boss';
+    // Start boss BGM after fade
+    setTimeout(() => this._startBossBGM(), 1500);
+  }
+
+  _clearBGMLoop() {
     if (this._bgmTimer) {
       clearTimeout(this._bgmTimer);
       this._bgmTimer = null;
     }
+  }
+
+  stopBGM() {
+    this._clearBGMLoop();
+    this._bgmMode = null;
     this.bgm = null;
   }
 

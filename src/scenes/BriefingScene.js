@@ -1,11 +1,15 @@
 import Phaser from 'phaser';
 import { CONFIG } from '../config.js';
 
-const LORE_TEXT = "Sir, there's been some movement and the president says activate Stratimus Chadley";
-const CHAR_DELAY = 50; // ms per character (SNES typewriter speed)
+const LORE_LINES = [
+  { speaker: '', text: 'Sir, code Venetian!' },
+  { speaker: 'BOOSH', text: 'Execute order Stratimus Chadley.' },
+];
+const CHAR_DELAY = 50;
+const LINE_PAUSE = 800; // pause between lines
 
 /**
- * BriefingScene — shows the Boosh briefing splash with typewriter lore text.
+ * BriefingScene — SNES-style two-line scrolling dialogue over Boosh briefing splash.
  */
 export class BriefingScene extends Phaser.Scene {
   constructor() {
@@ -19,46 +23,79 @@ export class BriefingScene extends Phaser.Scene {
     const bg = this.add.image(width / 2, height / 2, 'screen-briefing');
     bg.setDisplaySize(width, height);
 
-    // Semi-transparent text backdrop
-    this.add.rectangle(width / 2, height - 80, width - 40, 80, 0x000000, 0.7)
-      .setOrigin(0.5);
+    // SNES-style text box at bottom
+    this.add.rectangle(width / 2, height - 60, width - 20, 100, 0x000022, 0.9)
+      .setOrigin(0.5)
+      .setStrokeStyle(3, 0x4488ff);
 
-    // Typewriter text
-    this.loreText = this.add.text(40, height - 110, '', {
+    const textStyle = {
       fontFamily: '"Press Start 2P", monospace',
-      fontSize: '14px',
+      fontSize: '13px',
       color: '#ffffff',
       wordWrap: { width: width - 80 },
-      lineSpacing: 6,
+      lineSpacing: 8,
+    };
+
+    // Speaker label (inside text box, top)
+    this.speakerText = this.add.text(30, height - 105, '', {
+      ...textStyle,
+      fontSize: '11px',
+      color: '#ffdd00',
     });
 
-    this.charIndex = 0;
-    this.typewriterTimer = this.time.addEvent({
-      delay: CHAR_DELAY,
-      callback: this.typeNextChar,
-      callbackScope: this,
-      repeat: LORE_TEXT.length - 1,
-    });
+    // Dialogue text (below speaker label)
+    this.dialogueText = this.add.text(30, height - 85, '', textStyle);
 
-    // "Press Start" prompt (hidden until text finishes or skip)
-    this.startPrompt = this.add.text(width / 2, height - 20, '[ PRESS START ]', {
-      fontFamily: '"Press Start 2P", monospace',
-      fontSize: '12px',
+    // "Press Start" prompt
+    this.startPrompt = this.add.text(width / 2, height - 15, '[ PRESS START ]', {
+      ...textStyle,
+      fontSize: '10px',
       color: '#ffdd00',
     }).setOrigin(0.5).setAlpha(0);
 
-    // Skip / start input
-    this.input.once('pointerdown', () => this.skipOrStart());
-    this.input.keyboard.once('keydown-SPACE', () => this.skipOrStart());
-    this.input.keyboard.once('keydown-ENTER', () => this.skipOrStart());
+    // State
+    this.currentLine = 0;
+    this.charIndex = 0;
+    this.allDone = false;
+
+    // Start first line
+    this.startLine(0);
+
+    // Input: skip current line or start game
+    this.input.on('pointerdown', () => this.skipOrAdvance());
+    this.input.keyboard.on('keydown-SPACE', () => this.skipOrAdvance());
+    this.input.keyboard.on('keydown-ENTER', () => this.skipOrAdvance());
   }
 
-  typeNextChar() {
-    this.loreText.text += LORE_TEXT[this.charIndex];
-    this.charIndex++;
-    if (this.charIndex >= LORE_TEXT.length) {
+  startLine(index) {
+    if (index >= LORE_LINES.length) {
+      this.allDone = true;
       this.showStartPrompt();
+      return;
     }
+    this.currentLine = index;
+    this.charIndex = 0;
+    const line = LORE_LINES[index];
+
+    // Show speaker label
+    this.speakerText.setText(line.speaker ? `${line.speaker}:` : '');
+    this.dialogueText.setText('');
+
+    this.typewriterTimer = this.time.addEvent({
+      delay: CHAR_DELAY,
+      callback: () => {
+        this.dialogueText.text += line.text[this.charIndex];
+        this.charIndex++;
+        if (this.charIndex >= line.text.length) {
+          this.typewriterTimer.remove();
+          // Auto-advance to next line after pause
+          this.time.delayedCall(LINE_PAUSE, () => {
+            this.startLine(index + 1);
+          });
+        }
+      },
+      repeat: line.text.length - 1,
+    });
   }
 
   showStartPrompt() {
@@ -69,25 +106,29 @@ export class BriefingScene extends Phaser.Scene {
       yoyo: true,
       repeat: -1,
     });
-    // Re-bind input for actual start
-    this.input.once('pointerdown', () => this.startGame());
-    this.input.keyboard.once('keydown-SPACE', () => this.startGame());
-    this.input.keyboard.once('keydown-ENTER', () => this.startGame());
   }
 
-  skipOrStart() {
-    if (this.charIndex < LORE_TEXT.length) {
-      // Skip to full text
-      this.typewriterTimer.remove();
-      this.loreText.text = LORE_TEXT;
-      this.charIndex = LORE_TEXT.length;
-      this.showStartPrompt();
-    } else {
+  skipOrAdvance() {
+    if (this.allDone) {
       this.startGame();
+      return;
+    }
+
+    const line = LORE_LINES[this.currentLine];
+    if (this.charIndex < line.text.length) {
+      // Skip to full text of current line
+      if (this.typewriterTimer) this.typewriterTimer.remove();
+      this.dialogueText.setText(line.text);
+      this.charIndex = line.text.length;
+      // Advance to next line after short pause
+      this.time.delayedCall(300, () => {
+        this.startLine(this.currentLine + 1);
+      });
     }
   }
 
   startGame() {
+    this.input.removeAllListeners();
     this.scene.start('GameScene');
   }
 }
