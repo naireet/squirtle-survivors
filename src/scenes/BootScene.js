@@ -31,8 +31,10 @@ export class BootScene extends Phaser.Scene {
     this.load.image('pickup-debuff', 'assets/pickups/debuff.png');
     this.load.image('pickup-aloe', 'assets/pickups/aloe.png');
     this.load.image('pickup-milk', 'assets/pickups/milk.png');
+    this.load.image('pickup-a1', 'assets/pickups/a1-heal.png');
 
-    // Splash screens (800×600)
+    // Morty death quote avatar
+    this.load.image('morty-avatar', 'assets/morty.png');
     this.load.image('screen-briefing', 'assets/screens/briefing.png');
     this.load.image('screen-gameover', 'assets/screens/game-over.png');
     this.load.image('screen-ending', 'assets/screens/ending.png');

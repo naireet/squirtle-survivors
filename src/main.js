@@ -4,6 +4,8 @@ import { BootScene } from './scenes/BootScene.js';
 import { BriefingScene } from './scenes/BriefingScene.js';
 import { GameScene } from './scenes/GameScene.js';
 import { HUDScene } from './scenes/HUDScene.js';
+import { MortyQuoteScene } from './scenes/MortyQuoteScene.js';
+import { VictoryScene } from './scenes/VictoryScene.js';
 import { GameOverScene } from './scenes/GameOverScene.js';
 
 const game = new Phaser.Game({
@@ -22,5 +24,5 @@ const game = new Phaser.Game({
     mode: Phaser.Scale.FIT,
     autoCenter: Phaser.Scale.CENTER_BOTH,
   },
-  scene: [BootScene, BriefingScene, GameScene, HUDScene, GameOverScene],
+  scene: [BootScene, BriefingScene, GameScene, HUDScene, MortyQuoteScene, VictoryScene, GameOverScene],
 });

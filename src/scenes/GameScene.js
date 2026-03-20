@@ -455,6 +455,12 @@ export class GameScene extends Phaser.Scene {
     if (specialRoll >= 0.95) {
       this.spawnPickup(enemy.x, enemy.y, 'aloe');
     }
+    // A1 heal — 30% from clacky, 4% minor heal from rocket
+    if (type === 'clacky' && Math.random() < 0.30) {
+      this.spawnPickup(enemy.x, enemy.y, 'a1');
+    } else if (type === 'rocket' && Math.random() < 0.04) {
+      this.spawnPickup(enemy.x, enemy.y, 'a1-minor');
+    }
 
     // Boss killed = win
     if (type === 'tom_king') {
@@ -512,6 +518,8 @@ export class GameScene extends Phaser.Scene {
       'debuff': 'pickup-debuff',
       'aloe': 'pickup-aloe',
       'milk': 'pickup-milk',
+      'a1': 'pickup-a1',
+      'a1-minor': 'pickup-a1',
     };
     const pickup = this.pickups.create(x, y, keyMap[type]);
     pickup.setDisplaySize(48, 48);
@@ -558,6 +566,14 @@ export class GameScene extends Phaser.Scene {
         this._updatePlayerTint();
       });
       this.events.emit('effect-changed', { aloe: true });
+    } else if (type === 'a1' || type === 'a1-minor') {
+      // A1 — heal player (full from clacky, minor from rocket)
+      this.audio.playPickup();
+      const heal = type === 'a1' ? CONFIG.PLAYER.A1_HEAL_AMOUNT : CONFIG.PLAYER.A1_MINOR_HEAL;
+      this.playerHP = Math.min(this.playerHP + heal, CONFIG.PLAYER.HP);
+      player.setTint(0x00ff00);
+      this.time.delayedCall(300, () => this._updatePlayerTint());
+      this.events.emit('hp-changed', this.playerHP);
     } else {
       this.audio.playPickup();
       const amount = type === 'powerup-2x' ? 2 : 1;
@@ -636,11 +652,18 @@ export class GameScene extends Phaser.Scene {
     this.audio.stopBGM();
     this.physics.pause();
     this.scene.stop('HUDScene');
-    this.scene.start('GameOverScene', {
+
+    const data = {
       victory,
       time: Math.floor(this.gameTime / 1000),
       powerUps: this.powerUpCount,
       wave: this.currentWave + 1,
-    });
+    };
+
+    if (victory) {
+      this.scene.start('VictoryScene', data);
+    } else {
+      this.scene.start('MortyQuoteScene', data);
+    }
   }
 }

@@ -19,6 +19,9 @@ export const CONFIG = {
     // Aloe buff — temporary speed boost
     ALOE_SPEED_FACTOR: 1.25,  // multiplied by speed
     ALOE_DURATION: 5000,      // ms
+    // A1 heal
+    A1_HEAL_AMOUNT: 30,       // HP restored (clacky drop)
+    A1_MINOR_HEAL: 15,        // HP restored (rocket drop)
     MEGA_THRESHOLD: 5,
     MEGA_COOLDOWN_MULT: 0.7,   // 30% faster attacks at mega
     MEGA_SHOT_COUNT: 2,        // dual-shot spread
@@ -30,7 +33,7 @@ export const CONFIG = {
 
   ENEMIES: {
     ROCKET: { hp: 30, speed: 85, damage: 12, score: 10, dropChance: 0.2 },
-    CLACKY: { hp: 100, speed: 130, damage: 30, score: 25, dropChance: 1.0 },
+    CLACKY: { hp: 90, speed: 120, damage: 22, score: 25, dropChance: 1.0 },
     TOM_KING: { hp: 500, speed: 60, damage: 30, score: 200, dropChance: 1.0 },
   },
 
