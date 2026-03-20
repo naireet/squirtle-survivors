@@ -17,25 +17,25 @@ export const CONFIG = {
   },
 
   ENEMIES: {
-    ROCKET: { hp: 30, speed: 80, damage: 10, score: 10, dropChance: 0.4 },
-    CLACKY: { hp: 60, speed: 110, damage: 15, score: 25, dropChance: 0.6 },
+    ROCKET: { hp: 30, speed: 80, damage: 10, score: 10, dropChance: 0.2 },
+    CLACKY: { hp: 80, speed: 120, damage: 20, score: 25, dropChance: 1.0 },
     TOM_KING: { hp: 500, speed: 60, damage: 25, score: 200, dropChance: 1.0 },
   },
 
   WAVES: [
-    { duration: 30000, spawns: [{ type: 'rocket', interval: 2000, count: 8 }] },
-    { duration: 30000, spawns: [{ type: 'rocket', interval: 1200, count: 12 }] },
+    { duration: 30000, spawns: [{ type: 'rocket', interval: 1000, count: 15 }] },
+    { duration: 30000, spawns: [{ type: 'rocket', interval: 800, count: 20 }] },
     { duration: 30000, spawns: [
-      { type: 'rocket', interval: 1500, count: 6 },
-      { type: 'clacky', interval: 3000, count: 4 },
+      { type: 'rocket', interval: 1000, count: 10 },
+      { type: 'clacky', interval: 2000, count: 6 },
     ]},
+    { duration: 30000, spawns: [
+      { type: 'clacky', interval: 1000, count: 12 },
+      { type: 'rocket', interval: 1500, count: 6 },
+    ]},
+    { duration: 30000, spawns: [{ type: 'clacky', interval: 700, count: 20 }] },
     { duration: 30000, spawns: [
       { type: 'clacky', interval: 1500, count: 8 },
-      { type: 'rocket', interval: 2500, count: 4 },
-    ]},
-    { duration: 30000, spawns: [{ type: 'clacky', interval: 1000, count: 15 }] },
-    { duration: 30000, spawns: [
-      { type: 'clacky', interval: 2000, count: 6 },
       { type: 'tom_king', interval: -1, count: 1 },  // -1 = spawn once immediately
     ]},
   ],

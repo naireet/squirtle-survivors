@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { CONFIG } from '../config.js';
+import { RetroAudio } from '../audio.js';
 
 const WORLD_SIZE = 2000; // world is larger than viewport; camera follows player
 
@@ -12,6 +13,11 @@ export class GameScene extends Phaser.Scene {
   }
 
   create() {
+    // -- Audio --
+    this.audio = new RetroAudio(this);
+    this.audio.init();
+    this.audio.startBGM();
+
     // -- World bounds --
     this.physics.world.setBounds(0, 0, WORLD_SIZE, WORLD_SIZE);
 
@@ -111,7 +117,9 @@ export class GameScene extends Phaser.Scene {
     if (vx !== 0 || vy !== 0) {
       const vec = new Phaser.Math.Vector2(vx, vy).normalize().scale(speed);
       this.player.setVelocity(vec.x, vec.y);
-      this.player.setRotation(Math.atan2(vy, vx));
+      // Flip sprite horizontally based on direction, no rotation
+      if (vx < 0) this.player.setFlipX(true);
+      else if (vx > 0) this.player.setFlipX(false);
     } else {
       this.player.setVelocity(0, 0);
     }
@@ -156,6 +164,7 @@ export class GameScene extends Phaser.Scene {
   fireProjectile(target) {
     const proj = this.projectiles.get(this.player.x, this.player.y, '__DEFAULT');
     if (!proj) return;
+    this.audio.playShoot();
 
     // Simple circle projectile
     proj.setActive(true).setVisible(true);
@@ -205,6 +214,8 @@ export class GameScene extends Phaser.Scene {
     }[type];
     if (!cfg) return;
 
+    if (type === 'tom_king') this.audio.playBossSpawn();
+
     // Spawn off-screen in a random direction
     const angle = Phaser.Math.FloatBetween(0, Math.PI * 2);
     const dist = Math.max(CONFIG.WIDTH, CONFIG.HEIGHT) * 0.7;
@@ -234,6 +245,7 @@ export class GameScene extends Phaser.Scene {
     const dmg = CONFIG.PLAYER.BASE_DAMAGE + (this.powerUpCount * CONFIG.PLAYER.DAMAGE_PER_POWERUP);
     const hp = enemy.getData('hp') - dmg;
     enemy.setData('hp', hp);
+    this.audio.playHit();
 
     // Flash white on hit
     enemy.setTint(0xffffff);
@@ -247,12 +259,20 @@ export class GameScene extends Phaser.Scene {
   onEnemyDeath(enemy) {
     const type = enemy.getData('type');
 
-    // Drop pickup
+    // Drop pickup — type determines what drops
     if (Math.random() < enemy.getData('dropChance')) {
-      this.spawnPickup(enemy.x, enemy.y, type === 'tom_king' ? 'powerup-2x' : 'powerup-1x');
+      if (type === 'tom_king') {
+        this.spawnPickup(enemy.x, enemy.y, 'powerup-2x');
+      } else if (type === 'clacky') {
+        // Clacky always drops; 30% chance of 2x, 70% chance of 1x
+        this.spawnPickup(enemy.x, enemy.y, Math.random() < 0.3 ? 'powerup-2x' : 'powerup-1x');
+      } else {
+        // Rockets: 90% 1x, 10% 2x
+        this.spawnPickup(enemy.x, enemy.y, Math.random() < 0.1 ? 'powerup-2x' : 'powerup-1x');
+      }
     }
     // Small chance of debuff drop
-    if (Math.random() < 0.1) {
+    if (Math.random() < 0.05) {
       this.spawnPickup(enemy.x, enemy.y, 'debuff');
     }
 
@@ -267,6 +287,7 @@ export class GameScene extends Phaser.Scene {
   onEnemyHitPlayer(player, enemy) {
     const dmg = enemy.getData('damage');
     this.playerHP -= dmg;
+    this.audio.playPlayerHit();
 
     // Knockback + invincibility frames
     player.setTint(0xff0000);
@@ -305,6 +326,7 @@ export class GameScene extends Phaser.Scene {
     pickup.destroy();
 
     if (type === 'debuff') {
+      this.audio.playDebuff();
       player.setData('debuffed', true);
       player.setTint(0x9900ff);
       this.time.delayedCall(CONFIG.PLAYER.DEBUFF_DURATION, () => {
@@ -312,19 +334,26 @@ export class GameScene extends Phaser.Scene {
         player.clearTint();
       });
     } else {
+      this.audio.playPickup();
       const amount = type === 'powerup-2x' ? 2 : 1;
+      const prevCount = this.powerUpCount;
       this.powerUpCount += amount;
-      this.updatePlayerEvolution();
+      this.updatePlayerEvolution(prevCount);
     }
 
     this.events.emit('powerup-changed', this.powerUpCount);
   }
 
-  updatePlayerEvolution() {
+  updatePlayerEvolution(prevCount) {
+    const crossed = (threshold) =>
+      prevCount < threshold && this.powerUpCount >= threshold;
+
     if (this.powerUpCount >= CONFIG.PLAYER.ULTRA_THRESHOLD) {
       this.player.setTexture('player-ultra');
+      if (crossed(CONFIG.PLAYER.ULTRA_THRESHOLD)) this.audio.playLevelUp();
     } else if (this.powerUpCount >= CONFIG.PLAYER.MEGA_THRESHOLD) {
       this.player.setTexture('player-mega');
+      if (crossed(CONFIG.PLAYER.MEGA_THRESHOLD)) this.audio.playLevelUp();
     }
     this.player.setDisplaySize(64, 64);
   }
@@ -371,6 +400,7 @@ export class GameScene extends Phaser.Scene {
     this.isGameOver = true;
     this.player.setVelocity(0, 0);
     this.spawnTimers.forEach(t => t.remove());
+    this.audio.stopBGM();
     this.physics.pause();
     this.scene.stop('HUDScene');
     this.scene.start('GameOverScene', {
