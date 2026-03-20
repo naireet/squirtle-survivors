@@ -577,6 +577,7 @@ export class GameScene extends Phaser.Scene {
       victory,
       time: Math.floor(this.gameTime / 1000),
       powerUps: this.powerUpCount,
+      wave: this.currentWave + 1,
     });
   }
 }

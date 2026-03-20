@@ -35,19 +35,19 @@ export const CONFIG = {
   },
 
   WAVES: [
-    { duration: 30000, spawns: [{ type: 'rocket', interval: 1000, count: 15 }] },
-    { duration: 30000, spawns: [{ type: 'rocket', interval: 800, count: 20 }] },
+    { duration: 30000, spawns: [{ type: 'rocket', interval: 600, count: 25 }] },
+    { duration: 30000, spawns: [{ type: 'rocket', interval: 400, count: 35 }] },
     { duration: 30000, spawns: [
-      { type: 'rocket', interval: 1000, count: 10 },
-      { type: 'clacky', interval: 2000, count: 6 },
+      { type: 'rocket', interval: 500, count: 20 },
+      { type: 'clacky', interval: 1200, count: 10 },
     ]},
     { duration: 30000, spawns: [
-      { type: 'clacky', interval: 1000, count: 12 },
-      { type: 'rocket', interval: 1500, count: 6 },
+      { type: 'clacky', interval: 600, count: 20 },
+      { type: 'rocket', interval: 800, count: 15 },
     ]},
-    { duration: 30000, spawns: [{ type: 'clacky', interval: 700, count: 20 }] },
+    { duration: 30000, spawns: [{ type: 'clacky', interval: 400, count: 30 }] },
     { duration: 30000, spawns: [
-      { type: 'clacky', interval: 1500, count: 8 },
+      { type: 'clacky', interval: 800, count: 15 },
       { type: 'tom_king', interval: -1, count: 1 },  // -1 = spawn once immediately
     ]},
   ],

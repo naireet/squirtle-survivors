@@ -10,7 +10,7 @@ export class GameOverScene extends Phaser.Scene {
   }
 
   create(data) {
-    const { victory, time, powerUps } = data;
+    const { victory, time, powerUps, wave } = data;
     const { width, height } = this.scale;
 
     // Splash image
@@ -39,6 +39,7 @@ export class GameOverScene extends Phaser.Scene {
     const s = time % 60;
     const statsStyle = { ...style, fontSize: '12px', color: '#ffffff' };
     this.add.text(width / 2, height * 0.5, [
+      `Wave: ${wave} / ${CONFIG.WAVES.length}`,
       `Time: ${m}:${s.toString().padStart(2, '0')}`,
       `Power Level: ${powerUps}`,
     ].join('\n'), statsStyle).setOrigin(0.5);
