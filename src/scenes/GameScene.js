@@ -306,7 +306,60 @@ export class GameScene extends Phaser.Scene {
   updateEnemies() {
     this.enemies.getChildren().forEach((enemy) => {
       if (!enemy.active) return;
+      // Clacky pauses before dash — don't move during windup
+      if (enemy.getData('dashing') || enemy.getData('winding')) return;
       this.physics.moveToObject(enemy, this.player, enemy.getData('speed'));
+    });
+  }
+
+  /** Clacky dash-attack: pause 1s with line indicator, then burst toward player */
+  startClackyDash(enemy) {
+    if (!enemy.active) return;
+
+    const dashCooldown = 3000; // time between dashes
+    const windupTime = 800;    // pause + indicator duration
+    const dashSpeed = 400;     // burst speed
+    const dashDuration = 600;  // how long the dash lasts
+
+    enemy.setData('winding', true);
+    enemy.body.setVelocity(0, 0);
+
+    // Draw line indicator toward player's current position
+    const targetX = this.player.x;
+    const targetY = this.player.y;
+    const line = this.add.graphics();
+    line.lineStyle(2, 0xff0000, 0.6);
+    line.lineBetween(enemy.x, enemy.y, targetX, targetY);
+    line.setDepth(4);
+
+    // Flash the enemy to telegraph
+    this.tweens.add({
+      targets: enemy,
+      alpha: { from: 0.4, to: 1 },
+      duration: 100,
+      repeat: 3,
+      yoyo: true,
+    });
+
+    this.time.delayedCall(windupTime, () => {
+      if (!enemy.active) { line.destroy(); return; }
+      line.destroy();
+      enemy.setData('winding', false);
+      enemy.setData('dashing', true);
+
+      // Dash toward locked target position
+      const angle = Phaser.Math.Angle.Between(enemy.x, enemy.y, targetX, targetY);
+      enemy.body.setVelocity(Math.cos(angle) * dashSpeed, Math.sin(angle) * dashSpeed);
+      enemy.setTint(0xff4444);
+
+      this.time.delayedCall(dashDuration, () => {
+        if (!enemy.active) return;
+        enemy.setData('dashing', false);
+        enemy.clearTint();
+
+        // Queue next dash
+        this.time.delayedCall(dashCooldown, () => this.startClackyDash(enemy));
+      });
     });
   }
 
@@ -337,12 +390,22 @@ export class GameScene extends Phaser.Scene {
       cfg.key
     );
     enemy.setDisplaySize(cfg.size, cfg.size);
+    // Shrink physics body to ~60% of visual for fairer hitboxes
+    const bodySize = cfg.size * 0.6;
+    const offset = (cfg.size - bodySize) / 2;
+    enemy.body.setSize(bodySize, bodySize);
+    enemy.body.setOffset(offset, offset);
     enemy.setData('hp', cfg.hp);
     enemy.setData('speed', cfg.speed);
     enemy.setData('damage', cfg.damage);
     enemy.setData('type', type);
     enemy.setData('dropChance', cfg.dropChance);
     enemy.setDepth(5);
+
+    // Clacky: start dash-attack loop after initial approach (2s)
+    if (type === 'clacky') {
+      this.time.delayedCall(2000, () => this.startClackyDash(enemy));
+    }
   }
 
   // ── Collisions ──
@@ -381,15 +444,15 @@ export class GameScene extends Phaser.Scene {
     // Chance of special pickups (mutually exclusive per drop)
     const specialRoll = Math.random();
     if (type === 'rocket') {
-      // Debuffs only drop from rockets — 15% hulk, 10% milk
-      if (specialRoll < 0.15) {
+      // Debuffs only drop from rockets — 10% hulk, 5% milk
+      if (specialRoll < 0.10) {
         this.spawnPickup(enemy.x, enemy.y, 'debuff');
-      } else if (specialRoll < 0.25) {
+      } else if (specialRoll < 0.15) {
         this.spawnPickup(enemy.x, enemy.y, 'milk');
       }
     }
-    // Aloe can drop from any enemy (3% chance)
-    if (specialRoll >= 0.97) {
+    // Aloe can drop from any enemy (5% chance)
+    if (specialRoll >= 0.95) {
       this.spawnPickup(enemy.x, enemy.y, 'aloe');
     }
 

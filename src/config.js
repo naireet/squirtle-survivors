@@ -14,7 +14,7 @@ export const CONFIG = {
     HULK_COOLDOWN_MULT: 2.5,  // attack cooldown multiplied by this
     HULK_DURATION: 4000,      // ms
     // Milk debuff — slows movement speed
-    MILK_SLOW_FACTOR: 0.4,    // multiplied by speed
+    MILK_SLOW_FACTOR: 0.6,    // multiplied by speed (was 0.4)
     MILK_DURATION: 3000,      // ms
     // Aloe buff — temporary speed boost
     ALOE_SPEED_FACTOR: 1.25,  // multiplied by speed
@@ -30,7 +30,7 @@ export const CONFIG = {
 
   ENEMIES: {
     ROCKET: { hp: 30, speed: 85, damage: 12, score: 10, dropChance: 0.2 },
-    CLACKY: { hp: 80, speed: 115, damage: 25, score: 25, dropChance: 1.0 },
+    CLACKY: { hp: 100, speed: 130, damage: 30, score: 25, dropChance: 1.0 },
     TOM_KING: { hp: 500, speed: 60, damage: 30, score: 200, dropChance: 1.0 },
   },
 
