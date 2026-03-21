@@ -87,8 +87,8 @@ export class TitleScene extends Phaser.Scene {
     const { width, height } = this.scale;
     this.lbGroup = this.add.group();
 
-    // Dim overlay
-    const overlay = this.add.rectangle(width / 2, height / 2, width, height, 0x000000, 0.85);
+    // Full opaque overlay (depth 10 to cover title elements)
+    const overlay = this.add.rectangle(width / 2, height / 2, width, height, 0x000011, 0.95).setDepth(10);
     this.lbGroup.add(overlay);
 
     const headerStyle = {
@@ -100,7 +100,7 @@ export class TitleScene extends Phaser.Scene {
     };
 
     // Loading text
-    const loadingText = this.add.text(width / 2, height * 0.2, '── LOADING... ──', headerStyle).setOrigin(0.5);
+    const loadingText = this.add.text(width / 2, height * 0.2, '── LOADING... ──', headerStyle).setOrigin(0.5).setDepth(10);
     this.lbGroup.add(loadingText);
 
     // Fetch scores
@@ -112,13 +112,13 @@ export class TitleScene extends Phaser.Scene {
     const scores = (globalScores && globalScores.length > 0) ? globalScores : getHighScores();
     const label = (globalScores && globalScores.length > 0) ? 'GLOBAL TOP 10' : 'LOCAL TOP 10';
 
-    const titleText = this.add.text(width / 2, height * 0.15, `── ${label} ──`, headerStyle).setOrigin(0.5);
+    const titleText = this.add.text(width / 2, height * 0.15, `── ${label} ──`, headerStyle).setOrigin(0.5).setDepth(10);
     this.lbGroup.add(titleText);
 
     const rowStyle = { ...headerStyle, fontSize: '8px', color: '#ffffff' };
 
     if (!scores || scores.length === 0) {
-      const empty = this.add.text(width / 2, height * 0.25, 'No scores yet!', { ...rowStyle, color: '#666' }).setOrigin(0.5);
+      const empty = this.add.text(width / 2, height * 0.25, 'No scores yet!', { ...rowStyle, color: '#666' }).setOrigin(0.5).setDepth(10);
       this.lbGroup.add(empty);
     } else {
       scores.slice(0, 10).forEach((entry, i) => {
@@ -129,7 +129,7 @@ export class TitleScene extends Phaser.Scene {
         const row = this.add.text(width / 2, height * 0.22 + i * 18, `${rank} ${name} ${pts} ${w}`, {
           ...rowStyle,
           color: i === 0 ? '#ffdd00' : i < 3 ? '#00ccff' : '#ffffff',
-        }).setOrigin(0.5);
+        }).setOrigin(0.5).setDepth(10);
         this.lbGroup.add(row);
       });
     }
@@ -137,7 +137,7 @@ export class TitleScene extends Phaser.Scene {
     // Score formula hint
     const formula = this.add.text(width / 2, height * 0.82, 'Score = time + pwr×10 + wave×50 + win×500', {
       ...rowStyle, fontSize: '7px', color: '#666688',
-    }).setOrigin(0.5);
+    }).setOrigin(0.5).setDepth(10);
     this.lbGroup.add(formula);
 
     // BACK button
@@ -147,7 +147,7 @@ export class TitleScene extends Phaser.Scene {
       color: '#000000',
       backgroundColor: '#ffdd00',
       padding: { x: 20, y: 10 },
-    }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+    }).setOrigin(0.5).setInteractive({ useHandCursor: true }).setDepth(10);
     this.lbGroup.add(backBtn);
 
     backBtn.on('pointerover', () => backBtn.setColor('#333'));

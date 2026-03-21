@@ -66,8 +66,8 @@ export class GameOverScene extends Phaser.Scene {
     const statsData = { time, powerUps, wave, victory };
     const tableY = victory ? 178 : 108;
 
-    // High score entry — OP mode scores shown but don't qualify for leaderboard
-    if (victory && !opMode && isHighScore(score)) {
+    // Name entry for any non-OP victory
+    if (victory && !opMode) {
       this.showNameEntry(width, tableY, score, statsData);
     } else {
       if (opMode && victory) {
