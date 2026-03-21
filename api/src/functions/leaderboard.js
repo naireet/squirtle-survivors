@@ -4,7 +4,6 @@ const { BlobServiceClient } = require('@azure/storage-blob');
 const CONTAINER = 'game-data';
 const BLOB = 'leaderboard.json';
 const MAX_ENTRIES = 50;
-const MAX_SCORE = 5000;
 const RATE_LIMIT_MS = 10000;
 
 // In-memory rate limiter (resets on cold start — fine for this scale)
@@ -45,13 +44,13 @@ function validateSubmission(body) {
   if (!/^[a-zA-Z0-9 ]+$/.test(name)) {
     return 'Name must be alphanumeric';
   }
-  if (typeof score !== 'number' || score < 0 || score > MAX_SCORE || !Number.isInteger(score)) {
+  if (typeof score !== 'number' || score < 0 || !Number.isInteger(score)) {
     return 'Invalid score';
   }
-  if (typeof time !== 'number' || time < 0 || time > 600 || !Number.isInteger(time)) {
+  if (typeof time !== 'number' || time < 0 || !Number.isInteger(time)) {
     return 'Invalid time';
   }
-  if (typeof powerUps !== 'number' || powerUps < 0 || powerUps > 500 || !Number.isInteger(powerUps)) {
+  if (typeof powerUps !== 'number' || powerUps < 0 || !Number.isInteger(powerUps)) {
     return 'Invalid powerUps';
   }
   if (typeof wave !== 'number' || wave < 1 || wave > 6 || !Number.isInteger(wave)) {
