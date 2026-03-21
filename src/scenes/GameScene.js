@@ -43,6 +43,7 @@ export class GameScene extends Phaser.Scene {
     this.clackyKills = 0;
     this.pickleKills = 0;
     this.ravegirlKills = 0;
+    this.diorKills = 0;
     this.tomKingKilled = false;
     this.tkSpawned = false;
 
@@ -108,6 +109,13 @@ export class GameScene extends Phaser.Scene {
     this.isPaused = false;
     this.input.keyboard.on('keydown-ESC', () => this.togglePause());
     this.input.keyboard.on('keydown-P', () => this.togglePause());
+
+    // -- GOD MODE (G key, local testing only — remove before deploy) --
+    this.godMode = false;
+    this.input.keyboard.on('keydown-G', () => {
+      this.godMode = !this.godMode;
+      console.log(`GOD MODE: ${this.godMode ? 'ON' : 'OFF'}`);
+    });
 
     // -- Wave system --
     this.spawnTimers = [];
@@ -420,6 +428,32 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
+  /** Dior — yells INVESTIGATE or PETITE periodically */
+  startDiorBehavior(enemy) {
+    const yellLoop = this.time.addEvent({
+      delay: 1200,
+      callback: () => {
+        if (!enemy.active) { yellLoop.remove(); return; }
+        const word = Math.random() < 0.5 ? 'INVESTIGATE' : 'PETITE';
+        const yell = this.add.text(enemy.x + Phaser.Math.Between(-10, 10), enemy.y - 35, word, {
+          fontFamily: '"Press Start 2P", monospace',
+          fontSize: '8px',
+          color: '#ff8800',
+          stroke: '#000000',
+          strokeThickness: 2,
+        }).setOrigin(0.5).setDepth(20);
+        this.tweens.add({
+          targets: yell,
+          y: yell.y - 25,
+          alpha: 0,
+          duration: 700,
+          onComplete: () => yell.destroy(),
+        });
+      },
+      loop: true,
+    });
+  }
+
   /** TK dramatic entrance — pause, overlay, SNES text, resume on input */
   triggerTKEntrance() {
     if (this.tkSpawned) return;
@@ -510,6 +544,7 @@ export class GameScene extends Phaser.Scene {
       pickle: { key: 'enemy-pickle', ...CONFIG.ENEMIES.PICKLE, size: 64 },
       clacky: { key: 'enemy-clacky', ...CONFIG.ENEMIES.CLACKY, size: 64 },
       ravegirl: { key: 'enemy-ravegirl', ...CONFIG.ENEMIES.RAVEGIRL, size: 64 },
+      dior: { key: 'enemy-dior', ...CONFIG.ENEMIES.DIOR, size: 64 },
       tom_king: { key: 'enemy-tom-king', ...CONFIG.ENEMIES.TOM_KING, size: 128 },
     }[type];
     if (!cfg) return;
@@ -559,6 +594,10 @@ export class GameScene extends Phaser.Scene {
     if (type === 'ravegirl') {
       this.startRavegirlBehavior(enemy);
     }
+    // Dior: yells while approaching
+    if (type === 'dior') {
+      this.startDiorBehavior(enemy);
+    }
   }
 
   // ── Collisions ──
@@ -588,14 +627,15 @@ export class GameScene extends Phaser.Scene {
     if (type === 'rocket') this.rocketKills++;
     else if (type === 'clacky') this.clackyKills++;
     else if (type === 'pickle') this.pickleKills++;
-    else if (type === 'ravegirl') {
-      this.ravegirlKills++;
-      // Check if TK should spawn
-      if (this.ravegirlKills >= CONFIG.RAVEGIRL_KILLS_FOR_TK && !this.tkSpawned) {
-        this.time.delayedCall(500, () => this.triggerTKEntrance());
-      }
-    }
+    else if (type === 'ravegirl') this.ravegirlKills++;
+    else if (type === 'dior') this.diorKills++;
     else if (type === 'tom_king') this.tomKingKilled = true;
+
+    // Check if TK should spawn (10 elite kills + final wave)
+    const eliteKills = this.ravegirlKills + this.diorKills;
+    if (eliteKills >= CONFIG.ELITE_KILLS_FOR_TK && !this.tkSpawned) {
+      this.time.delayedCall(500, () => this.triggerTKEntrance());
+    }
 
     // Kill text popups
     if (type === 'clacky') {
@@ -629,13 +669,29 @@ export class GameScene extends Phaser.Scene {
         duration: 1000,
         onComplete: () => popup.destroy(),
       });
+    } else if (type === 'dior') {
+      const word = Math.random() < 0.5 ? 'INVESTIGATED!' : 'PETITE\'D!';
+      const popup = this.add.text(enemy.x, enemy.y - 30, word, {
+        fontFamily: '"Press Start 2P", monospace',
+        fontSize: '10px',
+        color: '#ff8800',
+        stroke: '#000000',
+        strokeThickness: 3,
+      }).setOrigin(0.5).setDepth(20);
+      this.tweens.add({
+        targets: popup,
+        y: popup.y - 40,
+        alpha: 0,
+        duration: 1000,
+        onComplete: () => popup.destroy(),
+      });
     }
 
-    // Drop pickup — type determines what drops
+    // Drop pickup — elites (clacky/ravegirl/dior) share same drop pool
     if (Math.random() < enemy.getData('dropChance')) {
       if (type === 'tom_king') {
         this.spawnPickup(enemy.x, enemy.y, 'powerup-2x');
-      } else if (type === 'clacky') {
+      } else if (type === 'clacky' || type === 'ravegirl' || type === 'dior') {
         this.spawnPickup(enemy.x, enemy.y, Math.random() < 0.3 ? 'powerup-2x' : 'powerup-1x');
       } else {
         this.spawnPickup(enemy.x, enemy.y, Math.random() < 0.1 ? 'powerup-2x' : 'powerup-1x');
@@ -661,8 +717,8 @@ export class GameScene extends Phaser.Scene {
     if (specialRoll >= 0.95) {
       this.spawnPickup(enemy.x, enemy.y, 'aloe');
     }
-    // Meat heal from clacky (30%)
-    if (type === 'clacky' && Math.random() < 0.30) {
+    // Meat heal from elites (30%)
+    if ((type === 'clacky' || type === 'ravegirl' || type === 'dior') && Math.random() < 0.30) {
       this.spawnPickup(enemy.x, enemy.y, 'meat');
     }
 
@@ -676,7 +732,7 @@ export class GameScene extends Phaser.Scene {
 
   onEnemyHitPlayer(player, enemy) {
     // Invincibility frames — skip damage if still invulnerable
-    if (this.isInvulnerable) return;
+    if (this.isInvulnerable ) return;
 
     const dmg = enemy.getData('damage');
     this.playerHP -= dmg;
@@ -984,6 +1040,7 @@ export class GameScene extends Phaser.Scene {
       clackyKills: this.clackyKills,
       pickleKills: this.pickleKills,
       ravegirlKills: this.ravegirlKills,
+      diorKills: this.diorKills,
       tomKingKilled: this.tomKingKilled,
     };
 

@@ -10,7 +10,7 @@ export class GameOverScene extends Phaser.Scene {
   }
 
   create(data) {
-    const { victory, time, powerUps, wave, rocketKills = 0, clackyKills = 0, pickleKills = 0, ravegirlKills = 0, tomKingKilled = false } = data;
+    const { victory, time, powerUps, wave, rocketKills = 0, clackyKills = 0, pickleKills = 0, ravegirlKills = 0, diorKills = 0, tomKingKilled = false } = data;
     const { width, height } = this.scale;
 
     // Splash image
@@ -46,7 +46,7 @@ export class GameOverScene extends Phaser.Scene {
 
     // Kill summary — victory only
     if (victory) {
-      const killSummary = `You vanquished ${rocketKills} Clavicular fans,\n${clackyKills} Clackys, ${ravegirlKills} Ravegirls,\n${pickleKills} Titan Sloths!\nStrat prevents another 9/11,\nPahrump can sleep in peace again!\nOda is proud of you!`;
+      const killSummary = `You vanquished ${rocketKills} Clavicular fans,\n${clackyKills} Clackys, ${ravegirlKills} Ravegirls,\n${diorKills} Diors, ${pickleKills} Titan Sloths!\nStrat prevents another 9/11,\nPahrump can sleep in peace again!\nOda is proud of you!`;
       this.add.text(width / 2, height * 0.56, killSummary, {
         ...statsStyle, fontSize: '8px', color: '#cccccc', lineSpacing: 4,
       }).setOrigin(0.5);

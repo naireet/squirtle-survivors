@@ -11,6 +11,9 @@ const QUOTES = [
   '"All this time we\'ve been\nsaying Strat has glass\nbones and paper skin,\nhe always proves me right."',
   '"like McClacky\'s balls.\nRip" - Strat',
   '"How\'s that fucking\nmeat, strat"',
+  '"Strat voted for Trump"',
+  '"Strat still throats it"',
+  '"Strat almost lost\nhis virginity!"',
 ];
 
 /**

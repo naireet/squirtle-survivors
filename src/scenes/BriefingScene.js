@@ -57,6 +57,7 @@ export class BriefingScene extends Phaser.Scene {
     this.currentLine = 0;
     this.charIndex = 0;
     this.allDone = false;
+    this.started = false;
 
     // Start first line
     this.startLine(0);
@@ -128,7 +129,10 @@ export class BriefingScene extends Phaser.Scene {
   }
 
   startGame() {
+    if (this.started) return;
+    this.started = true;
     this.input.removeAllListeners();
+    this.input.keyboard.removeAllListeners();
     this.scene.start('GameScene');
   }
 }

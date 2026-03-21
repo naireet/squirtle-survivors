@@ -40,6 +40,7 @@ export const CONFIG = {
     PICKLE: { hp: 25, speed: 90, damage: 10, score: 8, dropChance: 0.15 },
     CLACKY: { hp: 90, speed: 120, damage: 22, score: 25, dropChance: 1.0 },
     RAVEGIRL: { hp: 180, speed: 110, damage: 20, score: 40, dropChance: 1.0 },
+    DIOR: { hp: 180, speed: 110, damage: 20, score: 40, dropChance: 1.0 },
     TOM_KING: { hp: 3000, speed: 60, damage: 30, score: 200, dropChance: 1.0 },
   },
 
@@ -47,13 +48,16 @@ export const CONFIG = {
   PICKLE_SLOW_FACTOR: 0.5,
   PICKLE_SLOW_DURATION: 1500,
 
-  // Ravegirl kills needed to trigger TK
-  RAVEGIRL_KILLS_FOR_TK: 5,
+  // Elite kills needed to trigger TK (Dior + Ravegirl combined, final wave only)
+  ELITE_KILLS_FOR_TK: 15,
 
   TK_QUOTES: [
-    'Up in the Sky is a masterpiece!',
-    'You will never go back to Japan again, I will make sure!',
-    'Strat, I will give Luffy PTSD!',
+    'Your grandma is younger than me child but I will still be on time!',
+    'CIA will nullify the accreditation of RenoU!',
+    'Effective immediately, the CIA has initiated Operation AramGG to de-authorize League in the US.',
+    'Buy one? Buicks fucking blow man',
+    'where\'s Oda\'s "Rorshach"! Haha, exactly!',
+    'SILENCE, I WILL START WRITING BATMAN AGAIN!',
   ],
 
   WAVES: [
@@ -69,19 +73,23 @@ export const CONFIG = {
       { type: 'rocket', interval: 500, count: 15 },
       { type: 'pickle', interval: 700, count: 12 },
       { type: 'clacky', interval: 1200, count: 8 },
+      { type: 'dior', interval: 2500, count: 5 },
     ]},
     { duration: 30000, spawns: [
       { type: 'clacky', interval: 600, count: 15 },
       { type: 'ravegirl', interval: 2000, count: 6 },
+      { type: 'dior', interval: 2500, count: 5 },
       { type: 'pickle', interval: 800, count: 10 },
     ]},
     { duration: 30000, spawns: [
       { type: 'clacky', interval: 500, count: 20 },
       { type: 'ravegirl', interval: 1500, count: 8 },
+      { type: 'dior', interval: 1800, count: 6 },
       { type: 'rocket', interval: 700, count: 12 },
     ]},
     { duration: 60000, spawns: [
       { type: 'ravegirl', interval: 1200, count: 15 },
+      { type: 'dior', interval: 1400, count: 12 },
       { type: 'clacky', interval: 800, count: 20 },
       { type: 'pickle', interval: 600, count: 20 },
     ]},

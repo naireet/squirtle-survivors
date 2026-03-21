@@ -25,6 +25,7 @@ export class BootScene extends Phaser.Scene {
     this.load.image('enemy-clacky', 'assets/enemies/clacky.png');
     this.load.image('enemy-tom-king', 'assets/enemies/tom-king.png');
     this.load.image('enemy-ravegirl', 'assets/enemies/ravegirl.png');
+    this.load.image('enemy-dior', 'assets/enemies/dior.png');
     this.load.image('enemy-pickle', 'assets/enemies/pickle.png');
 
     // Pickup sprites (48×48 with colored borders)
