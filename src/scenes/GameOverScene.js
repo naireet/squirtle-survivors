@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { CONFIG } from '../config.js';
-import { calculateScore, isHighScore, saveHighScore, getHighScores } from '../highscores.js';
+import { calculateScore, isHighScore, saveHighScore, getHighScores, fetchGlobalScores, submitGlobalScore } from '../highscores.js';
 
 /**
  * GameOverScene — shows stats, kill summary, high score entry, and leaderboard.
@@ -75,7 +75,8 @@ export class GameOverScene extends Phaser.Scene {
           ...smallStyle, fontSize: '8px', color: '#ff8800',
         }).setOrigin(0.5, 0);
       }
-      this.showHighScoreTable(width, tableY + (opMode && victory ? 12 : 0));
+      const tblY = tableY + (opMode && victory ? 12 : 0);
+      this.showGlobalLeaderboard(width, tblY);
       this.showPlayAgain(width, height);
     }
   }
@@ -150,22 +151,61 @@ export class GameOverScene extends Phaser.Scene {
       }
     });
 
-    const doSubmit = () => {
+    const doSubmit = async () => {
       if (name.length === 0) return;
       this.input.keyboard.removeAllListeners();
       hiddenInput.remove();
-      saveHighScore(name, score, stats);
-      nameDisplay.destroy();
+
+      // Visual feedback
+      nameDisplay.setText('SUBMITTING...');
       submitBtn.destroy();
-      this.showHighScoreTable(width, y);
+
+      // Save locally
+      saveHighScore(name, score, stats);
+
+      // Submit to global API
+      const globalScores = await submitGlobalScore(name, score, stats);
+
+      if (!this.scene.isActive()) return;
+      nameDisplay.destroy();
+
+      if (globalScores) {
+        this.renderScoreTable(width, y, globalScores, 'GLOBAL TOP 10');
+      } else {
+        this.renderScoreTable(width, y, getHighScores(), 'LOCAL TOP 10');
+      }
       this.showPlayAgain(width, this.scale.height);
     };
 
     submitBtn.on('pointerdown', doSubmit);
   }
 
-  showHighScoreTable(width, y) {
-    const scores = getHighScores();
+  /** Fetch global leaderboard with local fallback */
+  async showGlobalLeaderboard(width, y) {
+    const headerStyle = {
+      fontFamily: '"Press Start 2P", monospace',
+      fontSize: '9px',
+      color: '#ffdd00',
+      stroke: '#000000',
+      strokeThickness: 2,
+    };
+
+    const loadingText = this.add.text(width / 2, y, '── LOADING... ──', headerStyle).setOrigin(0.5, 0);
+
+    const globalScores = await fetchGlobalScores();
+    if (!this.scene.isActive()) return;
+
+    loadingText.destroy();
+
+    if (globalScores && globalScores.length > 0) {
+      this.renderScoreTable(width, y, globalScores, 'GLOBAL TOP 10');
+    } else {
+      this.renderScoreTable(width, y, getHighScores(), 'LOCAL TOP 10');
+    }
+  }
+
+  /** Render a score table with a given label */
+  renderScoreTable(width, y, scores, label) {
     const headerStyle = {
       fontFamily: '"Press Start 2P", monospace',
       fontSize: '9px',
@@ -175,14 +215,14 @@ export class GameOverScene extends Phaser.Scene {
     };
     const rowStyle = { ...headerStyle, fontSize: '8px', color: '#ffffff' };
 
-    this.add.text(width / 2, y, '── TOP 10 ──', headerStyle).setOrigin(0.5, 0);
+    this.add.text(width / 2, y, `── ${label} ──`, headerStyle).setOrigin(0.5, 0);
 
-    if (scores.length === 0) {
+    if (!scores || scores.length === 0) {
       this.add.text(width / 2, y + 18, 'No scores yet!', { ...rowStyle, color: '#666' }).setOrigin(0.5, 0);
       return;
     }
 
-    scores.forEach((entry, i) => {
+    scores.slice(0, 10).forEach((entry, i) => {
       const rank = `${i + 1}.`.padStart(3);
       const name = entry.name.padEnd(10);
       const pts = `${entry.score}`.padStart(5);

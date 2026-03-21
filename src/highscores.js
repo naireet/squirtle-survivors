@@ -1,18 +1,18 @@
 /**
- * Local high score system using localStorage.
- * Stores top 10 scores sorted by score descending.
+ * High score system — local (localStorage) + global (Azure API).
+ * Local stores top 10 as fallback. Global API is authoritative when available.
  */
 const STORAGE_KEY = 'squirtle-survivors-highscores';
 const MAX_ENTRIES = 10;
+const API_URL = '/api/leaderboard';
 
 /** Calculate score from game stats */
 export function calculateScore({ time, powerUps, wave, victory }) {
-  // Base: time survived in seconds + powerups * 10 + wave * 50
-  // Victory bonus: +500
   return time + (powerUps * 10) + (wave * 50) + (victory ? 500 : 0);
 }
 
-/** Get all high scores (sorted desc) */
+// ── Local storage helpers ──
+
 export function getHighScores() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -22,13 +22,11 @@ export function getHighScores() {
   }
 }
 
-/** Check if a score qualifies for the leaderboard */
 export function isHighScore(score) {
   const scores = getHighScores();
   return scores.length < MAX_ENTRIES || score > scores[scores.length - 1].score;
 }
 
-/** Save a new high score entry. Returns the updated list. */
 export function saveHighScore(name, score, stats) {
   const scores = getHighScores();
   scores.push({
@@ -43,6 +41,41 @@ export function saveHighScore(name, score, stats) {
   const trimmed = scores.slice(0, MAX_ENTRIES);
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(trimmed));
-  } catch { /* localStorage full — ignore */ }
+  } catch { /* localStorage full */ }
   return trimmed;
+}
+
+// ── Global API helpers ──
+
+/** Fetch global top 10. Returns array or null on failure. */
+export async function fetchGlobalScores() {
+  try {
+    const res = await fetch(API_URL);
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
+/** Submit score to global leaderboard. Returns updated top 10 or null. */
+export async function submitGlobalScore(name, score, stats) {
+  try {
+    const res = await fetch(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: name.substring(0, 10),
+        score,
+        time: stats.time,
+        powerUps: stats.powerUps,
+        wave: stats.wave,
+        victory: stats.victory,
+      }),
+    });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
 }
