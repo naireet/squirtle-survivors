@@ -12,6 +12,10 @@ export class VictoryScene extends Phaser.Scene {
     this.gameData = data;
     const { width, height } = this.scale;
 
+    // Victory BGM
+    this.victoryMusic = this.sound.add('victory-bgm', { volume: 0.5, loop: true });
+    this.victoryMusic.play();
+
     // Ending splash (One Piece)
     const bg = this.add.image(width / 2, height / 2, 'screen-ending');
     bg.setDisplaySize(width, height);
@@ -62,7 +66,10 @@ export class VictoryScene extends Phaser.Scene {
     });
 
     // After 6s total, transition to GameOverScene with victory stats
-    const advance = () => this.scene.start('GameOverScene', this.gameData);
+    const advance = () => {
+      this.victoryMusic.stop();
+      this.scene.start('GameOverScene', this.gameData);
+    };
     this.time.delayedCall(6000, advance);
 
     // Skip on input after a brief delay (don't skip accidentally)

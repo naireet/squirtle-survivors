@@ -67,13 +67,14 @@ export class GameScene extends Phaser.Scene {
     this.player.setDisplaySize(64, 64);
     this.player.setDepth(10);
 
-    // -- Input --
+    // -- Input (WASD + Arrow keys) --
     this.cursors = this.input.keyboard.addKeys({
       up: Phaser.Input.Keyboard.KeyCodes.W,
       down: Phaser.Input.Keyboard.KeyCodes.S,
       left: Phaser.Input.Keyboard.KeyCodes.A,
       right: Phaser.Input.Keyboard.KeyCodes.D,
     });
+    this.arrows = this.input.keyboard.createCursorKeys();
 
     // Mobile virtual joystick zone
     this.joystickVector = new Phaser.Math.Vector2(0, 0);
@@ -109,13 +110,6 @@ export class GameScene extends Phaser.Scene {
     this.isPaused = false;
     this.input.keyboard.on('keydown-ESC', () => this.togglePause());
     this.input.keyboard.on('keydown-P', () => this.togglePause());
-
-    // -- GOD MODE (G key, local testing only — remove before deploy) --
-    this.godMode = false;
-    this.input.keyboard.on('keydown-G', () => {
-      this.godMode = !this.godMode;
-      console.log(`GOD MODE: ${this.godMode ? 'ON' : 'OFF'}`);
-    });
 
     // -- Wave system --
     this.spawnTimers = [];
@@ -181,10 +175,10 @@ export class GameScene extends Phaser.Scene {
   handleMovement() {
     let vx = 0, vy = 0;
 
-    if (this.cursors.left.isDown) vx = -1;
-    else if (this.cursors.right.isDown) vx = 1;
-    if (this.cursors.up.isDown) vy = -1;
-    else if (this.cursors.down.isDown) vy = 1;
+    if (this.cursors.left.isDown || this.arrows.left.isDown) vx = -1;
+    else if (this.cursors.right.isDown || this.arrows.right.isDown) vx = 1;
+    if (this.cursors.up.isDown || this.arrows.up.isDown) vy = -1;
+    else if (this.cursors.down.isDown || this.arrows.down.isDown) vy = 1;
 
     // Mobile joystick override
     if (this.joystickVector.length() > 0.1) {
@@ -732,7 +726,7 @@ export class GameScene extends Phaser.Scene {
 
   onEnemyHitPlayer(player, enemy) {
     // Invincibility frames — skip damage if still invulnerable
-    if (this.isInvulnerable ) return;
+    if (this.isInvulnerable) return;
 
     const dmg = enemy.getData('damage');
     this.playerHP -= dmg;

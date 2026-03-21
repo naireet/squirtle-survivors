@@ -41,12 +41,14 @@ export class HUDScene extends Phaser.Scene {
 
     // Listen for game events
     gs.events.on('hp-changed', (hp) => {
+      if (!this.hpBar) return;
       const pct = Phaser.Math.Clamp(hp / CONFIG.PLAYER.HP, 0, 1);
       this.hpBar.width = 156 * pct;
       this.hpBar.fillColor = pct > 0.5 ? 0x00ff66 : pct > 0.25 ? 0xffaa00 : 0xff3333;
     });
 
     gs.events.on('powerup-changed', (count) => {
+      if (!this.powerText) return;
       const mega = CONFIG.PLAYER.MEGA_THRESHOLD;
       const ultra = CONFIG.PLAYER.ULTRA_THRESHOLD;
       let label;
@@ -64,7 +66,7 @@ export class HUDScene extends Phaser.Scene {
     });
 
     gs.events.on('wave-changed', (wave) => {
-      this.waveText.setText(`WAVE ${wave}`);
+      if (this.waveText) this.waveText.setText(`WAVE ${wave}`);
     });
 
     // Pause overlay

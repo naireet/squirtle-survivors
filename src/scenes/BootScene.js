@@ -48,6 +48,9 @@ export class BootScene extends Phaser.Scene {
 
     // Bathroom (static world object)
     this.load.image('bathroom', 'assets/bathroom.png');
+
+    // Victory BGM
+    this.load.audio('victory-bgm', 'assets/victory-bgm.mp3');
   }
 
   create() {
