@@ -257,6 +257,6 @@ export class GameOverScene extends Phaser.Scene {
     if (this.restarting) return;
     this.restarting = true;
     this.input.keyboard.removeAllListeners();
-    this.scene.start('BriefingScene');
+    this.scene.start('TitleScene');
   }
 }

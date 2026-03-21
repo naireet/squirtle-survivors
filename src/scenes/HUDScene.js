@@ -73,19 +73,55 @@ export class HUDScene extends Phaser.Scene {
     // Pause overlay
     this.pauseOverlay = this.add.rectangle(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2,
       CONFIG.WIDTH, CONFIG.HEIGHT, 0x000000, 0.6).setVisible(false);
-    this.pauseText = this.add.text(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2, 'PAUSED\n\nTap or press ESC/P', {
+    this.pauseText = this.add.text(CONFIG.WIDTH / 2, CONFIG.HEIGHT * 0.3, 'PAUSED', {
       fontFamily: '"Press Start 2P", monospace',
-      fontSize: '16px',
+      fontSize: '20px',
       color: '#ffdd00',
       stroke: '#000000',
       strokeThickness: 4,
       align: 'center',
     }).setOrigin(0.5).setVisible(false);
 
+    // Pause menu buttons
+    const pauseBtnStyle = {
+      fontFamily: '"Press Start 2P", monospace',
+      fontSize: '12px',
+      color: '#000000',
+      backgroundColor: '#ffdd00',
+      padding: { x: 24, y: 10 },
+    };
+
+    this.resumeBtn = this.add.text(CONFIG.WIDTH / 2, CONFIG.HEIGHT * 0.48, 'RESUME', pauseBtnStyle)
+      .setOrigin(0.5).setVisible(false).setInteractive({ useHandCursor: true });
+    this.resumeBtn.on('pointerover', () => this.resumeBtn.setColor('#333'));
+    this.resumeBtn.on('pointerout', () => this.resumeBtn.setColor('#000'));
+    this.resumeBtn.on('pointerdown', (p) => { p.event.stopPropagation(); gs.togglePause(); });
+
+    this.restartBtn = this.add.text(CONFIG.WIDTH / 2, CONFIG.HEIGHT * 0.62, 'RESTART', {
+      ...pauseBtnStyle, backgroundColor: '#ff4444', color: '#ffffff',
+    }).setOrigin(0.5).setVisible(false).setInteractive({ useHandCursor: true });
+    this.restartBtn.on('pointerover', () => this.restartBtn.setColor('#ffcccc'));
+    this.restartBtn.on('pointerout', () => this.restartBtn.setColor('#ffffff'));
+    this.restartBtn.on('pointerdown', (p) => {
+      p.event.stopPropagation();
+      this.restartToTitle(gs);
+    });
+
+    this.pauseHint = this.add.text(CONFIG.WIDTH / 2, CONFIG.HEIGHT * 0.76, 'ESC / P to resume', {
+      fontFamily: '"Press Start 2P", monospace',
+      fontSize: '8px',
+      color: '#888899',
+      stroke: '#000000',
+      strokeThickness: 2,
+    }).setOrigin(0.5).setVisible(false);
+
     this._onPaused = (paused) => {
       if (!this.scene.isActive()) return;
       this.pauseOverlay.setVisible(paused);
       this.pauseText.setVisible(paused);
+      this.resumeBtn.setVisible(paused);
+      this.restartBtn.setVisible(paused);
+      this.pauseHint.setVisible(paused);
     };
 
     this._onOpMode = (active) => {
@@ -182,5 +218,15 @@ export class HUDScene extends Phaser.Scene {
     const m = Math.floor(secs / 60);
     const s = secs % 60;
     this.timerText.setText(`${m}:${s.toString().padStart(2, '0')}`);
+  }
+
+  restartToTitle(gs) {
+    if (gs.isPaused) {
+      gs.physics.resume();
+    }
+    gs.audio.stopBGM();
+    this.scene.stop('GameScene');
+    this.scene.stop('HUDScene');
+    this.scene.start('TitleScene');
   }
 }
