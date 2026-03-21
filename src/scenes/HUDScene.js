@@ -21,7 +21,6 @@ export class HUDScene extends Phaser.Scene {
     };
 
     // HP bar background
-    // HP bar background
     this.add.rectangle(105, 24, 160, 16, 0x333333).setOrigin(0.5).setScrollFactor(0);
     this.hpBar = this.add.rectangle(27, 17, 156, 12, 0x00ff66).setOrigin(0, 0).setScrollFactor(0);
 
@@ -39,17 +38,17 @@ export class HUDScene extends Phaser.Scene {
     // Timer
     this.timerText = this.add.text(CONFIG.WIDTH - 10, 30, '0:00', style).setOrigin(1, 0).setScrollFactor(0);
 
-    // Listen for game events
-    gs.events.on('hp-changed', (hp) => {
-      if (!this.hpBar) return;
+    // Named callbacks so we can remove them on shutdown
+    this._onHpChanged = (hp) => {
+      if (!this.hpBar || !this.scene.isActive()) return;
       const maxHP = gs.opMode ? 300 : CONFIG.PLAYER.HP;
       const pct = Phaser.Math.Clamp(hp / maxHP, 0, 1);
       this.hpBar.width = 156 * pct;
       this.hpBar.fillColor = pct > 0.5 ? 0x00ff66 : pct > 0.25 ? 0xffaa00 : 0xff3333;
-    });
+    };
 
-    gs.events.on('powerup-changed', (count) => {
-      if (!this.powerText) return;
+    this._onPowerupChanged = (count) => {
+      if (!this.powerText || !this.scene.isActive()) return;
       const mega = CONFIG.PLAYER.MEGA_THRESHOLD;
       const ultra = CONFIG.PLAYER.ULTRA_THRESHOLD;
       let label;
@@ -64,11 +63,12 @@ export class HUDScene extends Phaser.Scene {
         this.powerText.setColor('#ffffff');
       }
       this.powerText.setText(label);
-    });
+    };
 
-    gs.events.on('wave-changed', (wave) => {
-      if (this.waveText) this.waveText.setText(`WAVE ${wave}`);
-    });
+    this._onWaveChanged = (wave) => {
+      if (!this.waveText || !this.scene.isActive()) return;
+      this.waveText.setText(`WAVE ${wave}`);
+    };
 
     // Pause overlay
     this.pauseOverlay = this.add.rectangle(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2,
@@ -82,9 +82,37 @@ export class HUDScene extends Phaser.Scene {
       align: 'center',
     }).setOrigin(0.5).setVisible(false);
 
-    gs.events.on('paused', (paused) => {
+    this._onPaused = (paused) => {
+      if (!this.scene.isActive()) return;
       this.pauseOverlay.setVisible(paused);
       this.pauseText.setVisible(paused);
+    };
+
+    this._onOpMode = (active) => {
+      if (!this.opText || !this.scene.isActive()) return;
+      this.opText.setVisible(active);
+    };
+
+    // Register all listeners on GameScene
+    gs.events.on('hp-changed', this._onHpChanged, this);
+    gs.events.on('powerup-changed', this._onPowerupChanged, this);
+    gs.events.on('wave-changed', this._onWaveChanged, this);
+    gs.events.on('paused', this._onPaused, this);
+    gs.events.on('op-mode', this._onOpMode, this);
+
+    // Clean up event listeners when this scene shuts down to prevent stale callbacks
+    this.events.once('shutdown', () => {
+      gs.events.off('hp-changed', this._onHpChanged, this);
+      gs.events.off('powerup-changed', this._onPowerupChanged, this);
+      gs.events.off('wave-changed', this._onWaveChanged, this);
+      gs.events.off('paused', this._onPaused, this);
+      gs.events.off('op-mode', this._onOpMode, this);
+      this.hpBar = null;
+      this.powerText = null;
+      this.waveText = null;
+      this.timerText = null;
+      this.opText = null;
+      this.gameScene = null;
     });
 
     // ── Pause + Mute buttons (bottom-right, icons only) ──
@@ -138,20 +166,18 @@ export class HUDScene extends Phaser.Scene {
     }).setOrigin(0.5, 0).setVisible(false).setInteractive({ useHandCursor: true });
 
     this.opText.on('pointerdown', () => {
-      // Toggle OP off
       gs.opMode = false;
       gs.playerHP = Math.min(gs.playerHP, CONFIG.PLAYER.HP);
       gs.events.emit('hp-changed', gs.playerHP);
       this.opText.setVisible(false);
     });
 
-    gs.events.on('op-mode', (active) => {
-      if (this.opText) this.opText.setVisible(active);
-    });
+    // Signal GameScene that HUD is ready
+    gs.events.emit('hud-ready');
   }
 
   update() {
-    if (!this.gameScene) return;
+    if (!this.gameScene || !this.timerText) return;
     const secs = Math.floor(this.gameScene.gameTime / 1000);
     const m = Math.floor(secs / 60);
     const s = secs % 60;

@@ -7,12 +7,13 @@ import { HUDScene } from './scenes/HUDScene.js';
 import { MortyQuoteScene } from './scenes/MortyQuoteScene.js';
 import { VictoryScene } from './scenes/VictoryScene.js';
 import { GameOverScene } from './scenes/GameOverScene.js';
+import { initExternalJoystick } from './external-joystick.js';
 
 const game = new Phaser.Game({
   type: Phaser.AUTO,
   width: CONFIG.WIDTH,
   height: CONFIG.HEIGHT,
-  parent: document.body,
+  parent: 'game-container',
   backgroundColor: '#1a1a2e',
   physics: {
     default: 'arcade',
@@ -26,3 +27,6 @@ const game = new Phaser.Game({
   },
   scene: [BootScene, BriefingScene, GameScene, HUDScene, MortyQuoteScene, VictoryScene, GameOverScene],
 });
+
+// Initialize external mobile joystick after Phaser creates the canvas
+initExternalJoystick();

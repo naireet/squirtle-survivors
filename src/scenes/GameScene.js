@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { CONFIG } from '../config.js';
 import { RetroAudio } from '../audio.js';
+import { externalJoystick } from '../external-joystick.js';
 
 const WORLD_SIZE = 2000; // world is larger than viewport; camera follows player
 
@@ -37,6 +38,7 @@ export class GameScene extends Phaser.Scene {
     this.isGameOver = false;
     this.isInvulnerable = false;
     this.lastAttackTime = 0;
+    this.godMode = false;
     this.opMode = false;
     this._opCodeBuffer = '';
 
@@ -125,7 +127,13 @@ export class GameScene extends Phaser.Scene {
 
     // -- Wave system --
     this.spawnTimers = [];
-    this.startWave(0);
+    // Defer startWave until HUDScene is ready to avoid emitting events
+    // before HUD text objects exist (causes drawImage crash on restart)
+    this.events.once('hud-ready', () => this.startWave(0));
+    // Fallback: if HUD somehow doesn't fire, start after 100ms
+    this.time.delayedCall(100, () => {
+      if (this.currentWave === 0 && this.waveTimer === 0) this.startWave(0);
+    });
   }
 
   update(time, delta) {
@@ -219,10 +227,16 @@ export class GameScene extends Phaser.Scene {
     if (this.cursors.up.isDown || this.arrows.up.isDown) vy = -1;
     else if (this.cursors.down.isDown || this.arrows.down.isDown) vy = 1;
 
-    // Mobile joystick override
+    // Mobile joystick override (in-game touch-anywhere)
     if (this.joystickVector.length() > 0.1) {
       vx = this.joystickVector.x;
       vy = this.joystickVector.y;
+    }
+
+    // External HTML joystick override (fixed pad below canvas)
+    if (externalJoystick.active && (Math.abs(externalJoystick.x) > 0.1 || Math.abs(externalJoystick.y) > 0.1)) {
+      vx = externalJoystick.x;
+      vy = externalJoystick.y;
     }
 
     const speed = this.getEffectiveSpeed();
@@ -765,7 +779,7 @@ export class GameScene extends Phaser.Scene {
 
   onEnemyHitPlayer(player, enemy) {
     // Invincibility frames — skip damage if still invulnerable
-    if (this.isInvulnerable) return;
+    if (this.isInvulnerable || this.godMode) return;
 
     const dmg = enemy.getData('damage');
     this.playerHP -= dmg;
@@ -1078,6 +1092,7 @@ export class GameScene extends Phaser.Scene {
       ravegirlKills: this.ravegirlKills,
       diorKills: this.diorKills,
       tomKingKilled: this.tomKingKilled,
+      opMode: this.opMode,
     };
 
     if (victory) {

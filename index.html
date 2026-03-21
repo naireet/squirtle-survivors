@@ -13,9 +13,66 @@
     * { margin: 0; padding: 0; box-sizing: border-box; }
     html, body { width: 100%; height: 100%; background: #000; overflow: hidden; }
     canvas { display: block; image-rendering: pixelated; }
+
+    /* Mobile external joystick */
+    #game-wrapper {
+      width: 100%; height: 100%;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+    }
+    #game-container { flex: 1 1 auto; min-height: 0; width: 100%; display: flex; align-items: center; justify-content: center; }
+    #joystick-area {
+      display: none; /* shown via JS on touch devices */
+      flex: 0 0 120px;
+      width: 100%;
+      background: #0a0a15;
+      border-top: 2px solid #222244;
+      touch-action: none;
+      position: relative;
+    }
+    #joystick-base {
+      position: absolute;
+      left: 50%; top: 50%;
+      transform: translate(-50%, -50%);
+      width: 100px; height: 100px;
+      border-radius: 50%;
+      background: rgba(68, 136, 255, 0.15);
+      border: 2px solid rgba(68, 136, 255, 0.3);
+    }
+    #joystick-thumb {
+      position: absolute;
+      left: 50%; top: 50%;
+      transform: translate(-50%, -50%);
+      width: 44px; height: 44px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.35);
+      border: 2px solid rgba(255, 255, 255, 0.5);
+      transition: background 0.1s;
+    }
+    #joystick-thumb.active { background: rgba(255, 255, 255, 0.55); }
+
+    /* D-pad arrows around joystick (subtle hints) */
+    #joystick-area .arrow {
+      position: absolute; font-size: 14px; color: rgba(255,255,255,0.15);
+      font-family: monospace; pointer-events: none;
+    }
+    #joystick-area .arrow.up    { left: 50%; top: 4px; transform: translateX(-50%); }
+    #joystick-area .arrow.down  { left: 50%; bottom: 4px; transform: translateX(-50%); }
+    #joystick-area .arrow.left  { left: calc(50% - 68px); top: 50%; transform: translateY(-50%); }
+    #joystick-area .arrow.right { right: calc(50% - 68px); top: 50%; transform: translateY(-50%); }
   </style>
 </head>
 <body>
+  <div id="game-wrapper">
+    <div id="game-container"></div>
+    <div id="joystick-area">
+      <div id="joystick-base"><div id="joystick-thumb"></div></div>
+      <span class="arrow up">▲</span>
+      <span class="arrow down">▼</span>
+      <span class="arrow left">◄</span>
+      <span class="arrow right">►</span>
+    </div>
+  </div>
   <script type="module" src="/src/main.js"></script>
 </body>
 </html>

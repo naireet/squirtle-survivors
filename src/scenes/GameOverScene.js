@@ -11,7 +11,7 @@ export class GameOverScene extends Phaser.Scene {
   }
 
   create(data) {
-    const { victory, time, powerUps, wave, rocketKills = 0, clackyKills = 0, pickleKills = 0, ravegirlKills = 0, diorKills = 0, tomKingKilled = false } = data;
+    const { victory, time, powerUps, wave, rocketKills = 0, clackyKills = 0, pickleKills = 0, ravegirlKills = 0, diorKills = 0, tomKingKilled = false, opMode = false } = data;
     const { width, height } = this.scale;
     this.restarting = false;
 
@@ -41,24 +41,41 @@ export class GameOverScene extends Phaser.Scene {
 
     // Score
     const score = calculateScore({ time, powerUps, wave, victory });
-    this.add.text(width / 2, 72, `SCORE: ${score}`, { ...style, fontSize: '14px', color: '#00ccff' }).setOrigin(0.5, 0);
+    const scoreLabel = opMode ? `SCORE: ${score} (OP)` : `SCORE: ${score}`;
+    this.add.text(width / 2, 72, scoreLabel, { ...style, fontSize: '14px', color: opMode ? '#ff8800' : '#00ccff' }).setOrigin(0.5, 0);
+
+    // Score breakdown
+    const timeScore = time;
+    const pwrScore = powerUps * 10;
+    const waveScore = wave * 50;
+    const victoryScore = victory ? 500 : 0;
+    const breakdownParts = [`${timeScore} time`, `${pwrScore} pwr`, `${waveScore} wave`];
+    if (victory) breakdownParts.push(`${victoryScore} win`);
+    this.add.text(width / 2, 88, breakdownParts.join(' + '), {
+      ...smallStyle, fontSize: '7px', color: '#888888',
+    }).setOrigin(0.5, 0);
 
     // Kill summary — victory only
     if (victory) {
       const killSummary = `You vanquished ${rocketKills} Clavicular fans, ${clackyKills} Clackys,\n${ravegirlKills} Ravegirls, ${diorKills} Diors, ${pickleKills} Titan Sloths!\nStrat prevents another 9/11, Pahrump can sleep in peace again!\nOda is proud of you!`;
-      this.add.text(width / 2, 95, killSummary, {
+      this.add.text(width / 2, 102, killSummary, {
         ...smallStyle, fontSize: '7px', color: '#cccccc', lineSpacing: 3,
       }).setOrigin(0.5, 0);
     }
 
     const statsData = { time, powerUps, wave, victory };
-    const tableY = victory ? 170 : 100;
+    const tableY = victory ? 178 : 108;
 
-    // High score entry or just show table
-    if (victory && isHighScore(score)) {
+    // High score entry — OP mode scores shown but don't qualify for leaderboard
+    if (victory && !opMode && isHighScore(score)) {
       this.showNameEntry(width, tableY, score, statsData);
     } else {
-      this.showHighScoreTable(width, tableY);
+      if (opMode && victory) {
+        this.add.text(width / 2, tableY - 5, 'OP scores don\'t count!', {
+          ...smallStyle, fontSize: '8px', color: '#ff8800',
+        }).setOrigin(0.5, 0);
+      }
+      this.showHighScoreTable(width, tableY + (opMode && victory ? 12 : 0));
       this.showPlayAgain(width, height);
     }
   }
