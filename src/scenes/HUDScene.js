@@ -42,7 +42,8 @@ export class HUDScene extends Phaser.Scene {
     // Listen for game events
     gs.events.on('hp-changed', (hp) => {
       if (!this.hpBar) return;
-      const pct = Phaser.Math.Clamp(hp / CONFIG.PLAYER.HP, 0, 1);
+      const maxHP = gs.opMode ? 300 : CONFIG.PLAYER.HP;
+      const pct = Phaser.Math.Clamp(hp / maxHP, 0, 1);
       this.hpBar.width = 156 * pct;
       this.hpBar.fillColor = pct > 0.5 ? 0x00ff66 : pct > 0.25 ? 0xffaa00 : 0xff3333;
     });
@@ -126,6 +127,27 @@ export class HUDScene extends Phaser.Scene {
 
     // Update timer every second
     this.gameScene = gs;
+
+    // OP mode indicator (hidden until activated, tappable for mobile)
+    this.opText = this.add.text(CONFIG.WIDTH / 2, 10, 'OP', {
+      fontFamily: '"Press Start 2P", monospace',
+      fontSize: '10px',
+      color: '#ffdd00',
+      stroke: '#000000',
+      strokeThickness: 2,
+    }).setOrigin(0.5, 0).setVisible(false).setInteractive({ useHandCursor: true });
+
+    this.opText.on('pointerdown', () => {
+      // Toggle OP off
+      gs.opMode = false;
+      gs.playerHP = Math.min(gs.playerHP, CONFIG.PLAYER.HP);
+      gs.events.emit('hp-changed', gs.playerHP);
+      this.opText.setVisible(false);
+    });
+
+    gs.events.on('op-mode', (active) => {
+      if (this.opText) this.opText.setVisible(active);
+    });
   }
 
   update() {

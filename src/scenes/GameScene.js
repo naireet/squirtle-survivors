@@ -37,6 +37,8 @@ export class GameScene extends Phaser.Scene {
     this.isGameOver = false;
     this.isInvulnerable = false;
     this.lastAttackTime = 0;
+    this.opMode = false;
+    this._opCodeBuffer = '';
 
     // Kill counters
     this.rocketKills = 0;
@@ -111,6 +113,16 @@ export class GameScene extends Phaser.Scene {
     this.input.keyboard.on('keydown-ESC', () => this.togglePause());
     this.input.keyboard.on('keydown-P', () => this.togglePause());
 
+    // -- OP Mode (secret code: type "67") --
+    this.input.keyboard.on('keydown', (event) => {
+      if (this.opMode) return;
+      this._opCodeBuffer += event.key;
+      if (this._opCodeBuffer.length > 10) this._opCodeBuffer = this._opCodeBuffer.slice(-10);
+      if (this._opCodeBuffer.includes('67')) {
+        this.activateOPMode();
+      }
+    });
+
     // -- Wave system --
     this.spawnTimers = [];
     this.startWave(0);
@@ -141,6 +153,33 @@ export class GameScene extends Phaser.Scene {
       this.audio.setMuted(false);
       this.events.emit('paused', false);
     }
+  }
+
+  // ── OP Mode ──
+
+  activateOPMode() {
+    if (this.opMode) return;
+    this.opMode = true;
+
+    // 3x HP
+    this.playerHP = 300;
+    this.events.emit('hp-changed', this.playerHP);
+
+    // Start at Mega (5 powerups)
+    const prev = this.powerUpCount;
+    this.powerUpCount = Math.max(this.powerUpCount, CONFIG.PLAYER.MEGA_THRESHOLD);
+    this.updatePlayerEvolution(prev);
+    this.events.emit('powerup-changed', this.powerUpCount);
+
+    // Notify HUD
+    this.events.emit('op-mode', true);
+    this.audio.playLevelUp();
+  }
+
+  /** OP mode doubles projectile damage */
+  getProjectileDamage() {
+    const base = CONFIG.PLAYER.BASE_DAMAGE + (this.powerUpCount * CONFIG.PLAYER.DAMAGE_PER_POWERUP);
+    return this.opMode ? base * 2 : base;
   }
 
   // ── Movement ──
@@ -600,7 +639,7 @@ export class GameScene extends Phaser.Scene {
     projectile.setActive(false).setVisible(false);
     projectile.body.enable = false;
 
-    const dmg = CONFIG.PLAYER.BASE_DAMAGE + (this.powerUpCount * CONFIG.PLAYER.DAMAGE_PER_POWERUP);
+    const dmg = this.getProjectileDamage();
     const hp = enemy.getData('hp') - dmg;
     enemy.setData('hp', hp);
     this.audio.playHit();
@@ -732,17 +771,20 @@ export class GameScene extends Phaser.Scene {
     this.playerHP -= dmg;
     this.audio.playPlayerHit();
 
-    // Grant i-frames (350ms of invulnerability)
+    // Grant i-frames (350ms normal, 700ms OP mode)
     this.isInvulnerable = true;
     player.setTint(0xff0000);
     player.setAlpha(0.6);
+
+    const iframeDuration = this.opMode ? 700 : 350;
+    const flashRepeats = this.opMode ? 7 : 3;
 
     // Flash effect during i-frames
     this.tweens.add({
       targets: player,
       alpha: { from: 0.3, to: 0.8 },
       duration: 80,
-      repeat: 3,
+      repeat: flashRepeats,
       yoyo: true,
       onComplete: () => {
         player.setAlpha(1);
